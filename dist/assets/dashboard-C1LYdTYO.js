@@ -1,0 +1,1 @@
+import{j as o,c as r,R as t}from"./globals-DPRpScTG.js";import{D as e}from"./DashboardView-DmfoaL-y.js";import"./normalizer-Do8uCMxe.js";import"./demo-data-CVD8GTGf.js";const s=()=>o.jsx(e,{mode:"dashboard"});r.createRoot(document.getElementById("root")).render(o.jsx(t.StrictMode,{children:o.jsx(s,{})}));
