@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { JobApplication } from '../types/application';
 import { UserSettings } from '../types/settings';
 import { ExtractedJobData } from '../types/extractor';
@@ -19,15 +19,16 @@ import { CompanyLogo } from '../components/CompanyLogo';
 import { Button } from '../components/ui/Button';
 import {
   ExternalLink,
-  Sidebar,
   Sliders,
   Plus,
   Sun,
   Moon,
   ArrowRight,
   Sparkles,
+  HelpCircle,
 } from 'lucide-react';
-import { formatDateBlock, formatDueByDate } from '../lib/normalizer';
+import { InteractiveTutorial } from '../components/InteractiveTutorial';
+import { formatDateBlock, formatDueByDate, calculateDaysLeft } from '../lib/normalizer';
 
 interface MiniDateBlockProps {
   appliedAt?: string | null;
@@ -37,19 +38,22 @@ interface MiniDateBlockProps {
 
 const MiniDateBlock: React.FC<MiniDateBlockProps> = ({ appliedAt, endDate, isUrgent }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const { dayName: appliedDayName, dayNumber: appliedDayNumber, monthName: appliedMonthName, year: appliedYear } = formatDateBlock(appliedAt);
-  const { dayNumber: dueDayNumber, monthName: dueMonthName, year: dueYear } = formatDateBlock(endDate);
+  const { dayName: appliedDayName, dayNumber: appliedDayNumber } = formatDateBlock(appliedAt);
   const hasDueDate = Boolean(endDate);
-  const isDifferentMonth = Boolean(hasDueDate && (dueMonthName !== appliedMonthName || dueYear !== appliedYear));
+  const daysLeftInfo = calculateDaysLeft(endDate);
 
   return (
     <div
       className="flex items-center shrink-0 cursor-pointer"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      title={hasDueDate ? `Due by ${formatDueByDate(endDate)}` : 'No deadline set'}
+      title={
+        hasDueDate
+          ? `${daysLeftInfo.label === 'OVERDUE' ? 'Overdue' : `${daysLeftInfo.days} days left`} • Due by ${formatDueByDate(endDate)}`
+          : 'No deadline set'
+      }
     >
-      <div className="w-10 h-10 relative select-none flex items-center justify-center">
+      <div className="w-[46px] h-10 relative select-none flex items-center justify-center">
         {/* Default State: Applied Date (smooth fade out on hover) */}
         <div
           className={`absolute inset-0 flex flex-col items-center justify-center text-center transition-opacity ease-in-out ${
@@ -59,14 +63,14 @@ const MiniDateBlock: React.FC<MiniDateBlockProps> = ({ appliedAt, endDate, isUrg
           }`}
         >
           <span
-            className={`block text-[10px] font-semibold uppercase tracking-wider ${
+            className={`block text-[10px] font-semibold uppercase tracking-wider text-center leading-none ${
               isUrgent ? 'text-terracotta-500 font-bold' : 'text-brand-secondary dark:text-darkBrand-secondary'
             }`}
           >
             {appliedDayName}
           </span>
           <span
-            className={`block text-lg font-bold font-sans tracking-tight leading-none mt-0.5 ${
+            className={`block text-lg font-bold font-sans tracking-tight leading-none mt-0.5 text-center ${
               isUrgent ? 'text-terracotta-500' : 'text-brand-ink dark:text-darkBrand-ink'
             }`}
           >
@@ -74,7 +78,7 @@ const MiniDateBlock: React.FC<MiniDateBlockProps> = ({ appliedAt, endDate, isUrg
           </span>
         </div>
 
-        {/* Hover State: "due by" + Due Date (fade in delayed by 0.3s, 3-lines if different month) */}
+        {/* Hover State: "Days left XX" (neatly aligned in red, delayed by 0.3s) */}
         <div
           className={`absolute inset-0 flex flex-col items-center justify-center text-center transition-opacity ease-in-out ${
             isHovered
@@ -82,31 +86,15 @@ const MiniDateBlock: React.FC<MiniDateBlockProps> = ({ appliedAt, endDate, isUrg
               : 'opacity-0 duration-300 delay-0 pointer-events-none'
           }`}
         >
-          {isDifferentMonth ? (
-            <>
-              <span className="block text-[8px] font-semibold uppercase tracking-tight text-red-500 dark:text-red-400 whitespace-nowrap leading-none">
-                due by
-              </span>
-              <span className="block text-sm font-bold font-sans tracking-tight leading-none text-red-500 dark:text-red-400 my-0.5">
-                {dueDayNumber}
-              </span>
-              <span className="block text-[8px] font-bold uppercase tracking-wider text-red-500 dark:text-red-400 leading-none">
-                {dueMonthName}
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="block text-[9px] font-semibold uppercase tracking-tight text-red-500 dark:text-red-400 whitespace-nowrap">
-                due by
-              </span>
-              <span className="block text-lg font-bold font-sans tracking-tight leading-none mt-0.5 text-red-500 dark:text-red-400">
-                {hasDueDate ? dueDayNumber : '—'}
-              </span>
-            </>
-          )}
+          <span className="block text-[7.5px] font-bold uppercase tracking-tight text-red-500 dark:text-red-400 whitespace-nowrap leading-none text-center">
+            {daysLeftInfo.label}
+          </span>
+          <span className="block text-lg font-bold font-sans tracking-tight leading-none text-red-500 dark:text-red-400 mt-0.5 text-center">
+            {daysLeftInfo.displayDays}
+          </span>
         </div>
       </div>
-      <div className="w-px h-7 bg-brand-border dark:bg-darkBrand-border mx-2.5 shrink-0" />
+      <div className="w-px h-7 bg-brand-border dark:bg-darkBrand-border mx-2 shrink-0" />
     </div>
   );
 };
@@ -133,6 +121,44 @@ export const PopupApp: React.FC = () => {
   // Form & Settings modal
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Interactive Onboarding Tutorial Tour State
+  const popupContainerRef = useRef<HTMLDivElement>(null);
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(1);
+
+  const handleStartTutorial = () => {
+    setIsSettingsOpen(false);
+    setTutorialStep(1);
+    setIsTutorialOpen(true);
+  };
+
+  const handleTutorialNext = () => {
+    if (tutorialStep === 1) {
+      setIsSettingsOpen(true);
+      setTutorialStep(2);
+    } else if (tutorialStep === 2) {
+      setTutorialStep(3);
+    } else if (tutorialStep === 3) {
+      setIsSettingsOpen(false);
+      setTutorialStep(4);
+    } else if (tutorialStep === 4) {
+      setIsTutorialOpen(false);
+      setTutorialStep(1);
+    }
+  };
+
+  const handleTutorialPrev = () => {
+    if (tutorialStep === 2) {
+      setIsSettingsOpen(false);
+      setTutorialStep(1);
+    } else if (tutorialStep === 3) {
+      setTutorialStep(2);
+    } else if (tutorialStep === 4) {
+      setIsSettingsOpen(true);
+      setTutorialStep(3);
+    }
+  };
 
   const refreshData = async () => {
     const list = await getStoredApplications();
@@ -256,12 +282,6 @@ export const PopupApp: React.FC = () => {
     }
   };
 
-  const handleOpenSidePanel = () => {
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-      chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
-    }
-  };
-
   // Pipeline stats
   const total = applications.length;
   let interviewCount = 0;
@@ -289,13 +309,16 @@ export const PopupApp: React.FC = () => {
   });
 
   return (
-    <div className="w-[390px] min-h-[490px] max-h-[620px] bg-brand-bg dark:bg-darkBrand-bg text-brand-ink dark:text-darkBrand-ink flex flex-col justify-between text-xs select-none">
+    <div
+      ref={popupContainerRef}
+      className="relative w-[390px] min-h-[490px] max-h-[620px] bg-brand-bg dark:bg-darkBrand-bg text-brand-ink dark:text-darkBrand-ink flex flex-col justify-between text-xs select-none"
+    >
       {/* 1. Tabato Header: 4-petal asterisk symbol + clean wordmark */}
       <div className="px-4 py-3 border-b border-brand-border dark:border-darkBrand-border bg-white dark:bg-darkBrand-surface flex items-center justify-between">
         <BrandLogo size="md" />
 
         {/* Quiet utility icons */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={handleToggleDarkMode}
             className="p-1.5 text-brand-secondary hover:text-brand-ink dark:text-darkBrand-secondary dark:hover:text-darkBrand-ink rounded-lg hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
@@ -303,13 +326,17 @@ export const PopupApp: React.FC = () => {
           >
             {isDarkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
+
+          {/* Circular Help Icon to Start Quick Setup Tutorial */}
           <button
-            onClick={handleOpenSidePanel}
-            className="p-1.5 text-brand-secondary hover:text-brand-ink dark:text-darkBrand-secondary dark:hover:text-darkBrand-ink rounded-lg hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
-            title="Open Side Panel (Alt+Shift+P)"
+            onClick={handleStartTutorial}
+            className="w-7 h-7 flex items-center justify-center rounded-full text-brand-secondary hover:text-terracotta-500 dark:text-darkBrand-secondary dark:hover:text-terracotta-400 bg-brand-pillBg/80 hover:bg-terracotta-50 dark:bg-darkBrand-pillBg/80 dark:hover:bg-terracotta-950/40 border border-brand-border dark:border-darkBrand-border transition-colors cursor-pointer shadow-2xs"
+            aria-label="Start interactive tutorial"
+            title="Interactive Tutorial & Quick Setup"
           >
-            <Sidebar className="w-3.5 h-3.5" />
+            <HelpCircle className="w-3.5 h-3.5" />
           </button>
+
           <button
             onClick={handleOpenFullDashboard}
             className="p-1.5 text-brand-secondary hover:text-brand-ink dark:text-darkBrand-secondary dark:hover:text-darkBrand-ink rounded-lg hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
@@ -317,8 +344,15 @@ export const PopupApp: React.FC = () => {
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
+
           <button
-            onClick={() => setIsSettingsOpen(true)}
+            id="tutorial-step-1-settings"
+            onClick={() => {
+              setIsSettingsOpen(true);
+              if (isTutorialOpen && tutorialStep === 1) {
+                setTutorialStep(2);
+              }
+            }}
             className="p-1.5 text-brand-secondary hover:text-brand-ink dark:text-darkBrand-secondary dark:hover:text-darkBrand-ink rounded-lg hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
             title="Settings"
           >
@@ -363,49 +397,51 @@ export const PopupApp: React.FC = () => {
             </h2>
           </div>
 
-          {/* Hero Action Button */}
-          {isJobPageHint ? (
-            <button
-              onClick={handleTrackCurrent}
-              disabled={isExtracting}
-              className="w-full pressable flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-terracotta-500 hover:bg-terracotta-600 active:bg-terracotta-700 text-white font-medium text-xs shadow-sm cursor-pointer disabled:opacity-75 disabled:pointer-events-none transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                {isExtracting ? (
-                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : justTracked ? (
-                  <span className="text-white font-bold">✓</span>
-                ) : (
-                  <Sparkles className="w-3.5 h-3.5 text-white/90" />
-                )}
-                <span>
-                  {isExtracting
-                    ? 'Analyzing listing…'
-                    : justTracked
-                    ? 'Tracked Application'
-                    : 'Track this application'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] text-white/80">
-                <span className="font-mono text-[10px] opacity-80">Alt+Shift+J</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </div>
-            </button>
-          ) : (
-            <div className="flex items-center justify-between pt-0.5">
-              <span className="text-[11px] text-brand-secondary dark:text-darkBrand-secondary">
-                Doesn't look like a job listing.
-              </span>
-              <Button
-                size="xs"
-                variant="outline"
+          {/* Hero Action Button Area */}
+          <div id="tutorial-step-4-track" className="rounded-xl transition-all duration-200">
+            {isJobPageHint ? (
+              <button
                 onClick={handleTrackCurrent}
-                isLoading={isExtracting}
+                disabled={isExtracting}
+                className="w-full pressable flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-terracotta-500 hover:bg-terracotta-600 active:bg-terracotta-700 text-white font-medium text-xs shadow-sm cursor-pointer disabled:opacity-75 disabled:pointer-events-none transition-colors"
               >
-                Track anyway
-              </Button>
-            </div>
-          )}
+                <div className="flex items-center gap-2">
+                  {isExtracting ? (
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : justTracked ? (
+                    <span className="text-white font-bold">✓</span>
+                  ) : (
+                    <Sparkles className="w-3.5 h-3.5 text-white/90" />
+                  )}
+                  <span>
+                    {isExtracting
+                      ? 'Analyzing listing…'
+                      : justTracked
+                      ? 'Tracked Application'
+                      : 'Track this application'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-white/80">
+                  <span className="font-mono text-[10px] opacity-80">Alt+Shift+J</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </button>
+            ) : (
+              <div className="flex items-center justify-between pt-0.5">
+                <span className="text-[11px] text-brand-secondary dark:text-darkBrand-secondary">
+                  Doesn't look like a job listing.
+                </span>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={handleTrackCurrent}
+                  isLoading={isExtracting}
+                >
+                  Track anyway
+                </Button>
+              </div>
+            )}
+          </div>
 
           {trackError && (
             <p className="text-[11px] text-terracotta-600 dark:text-terracotta-400 font-medium pt-1">
@@ -592,6 +628,16 @@ export const PopupApp: React.FC = () => {
           }}
         />
       )}
+
+      {/* Interactive Onboarding Tutorial Tour */}
+      <InteractiveTutorial
+        isOpen={isTutorialOpen}
+        step={tutorialStep}
+        onClose={() => setIsTutorialOpen(false)}
+        onNext={handleTutorialNext}
+        onPrev={handleTutorialPrev}
+        containerRef={popupContainerRef}
+      />
     </div>
   );
 };

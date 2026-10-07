@@ -205,38 +205,185 @@ export function parseVacancies(vacancies?: string | null): number {
 }
 
 /**
- * Parse salary/CTC string to an annualized numeric value for comparative sorting
+ * Parse salary/CTC string to an annualized numeric INR value for comparative sorting
+ * Handles:
+ * - Currencies: USD ($), EUR (€), GBP (£), CAD (C$), AUD (A$), INR (₹ / Rs / INR)
+ * - Frequencies: Per Year / Per Annum / LPA, Per Month / pm, Per Hour / hr, Per Week
+ * - Units: Crore (Cr), Lakh / Lac (LPA / L), Thousand (k / thousand)
+ * - Ranges: "$185,000 - $240,000", "₹42 - ₹55 LPA" (uses upper bound)
  */
 export function parseSalaryToAnnualValue(salary?: string | null): number {
-  if (!salary || salary.toLowerCase().includes('not specified')) return 0;
-
-  const text = salary.toLowerCase().replace(/,/g, '');
-
-  // Detect multipliers & frequencies
-  const isLakh = /lpa|lakh|\bl\b/i.test(text);
-  const isMonthly = /month|\/mo|\bpm\b/i.test(text);
-  const isHourly = /hour|\/hr/i.test(text);
-  const isK = /\bk\b/.test(text);
-
-  // Extract all numbers
-  const numbers = text.match(/\d+(?:\.\d+)?/g);
-  if (!numbers || numbers.length === 0) return 0;
-
-  // Use the upper bound in ranges (e.g. 42 - 55 LPA -> 55)
-  const maxNum = Math.max(...numbers.map(Number));
-
-  if (isLakh) {
-    return maxNum * 100000;
-  }
-  if (isK) {
-    return maxNum * 1000;
-  }
-  if (isMonthly) {
-    return maxNum * 12;
-  }
-  if (isHourly) {
-    return maxNum * 2000;
+  if (!salary || typeof salary !== 'string') return 0;
+  const lower = salary.toLowerCase().trim();
+  if (!lower || lower.includes('not specified') || lower === 'null' || lower === 'undefined') {
+    return 0;
   }
 
-  return maxNum;
+  // 1. Detect Currency Exchange Multiplier (normalizing to INR base)
+  let currencyMultiplier = 1; // Default INR
+  if (lower.includes('£') || lower.includes('gbp')) {
+    currencyMultiplier = 110;
+  } else if (lower.includes('€') || lower.includes('eur')) {
+    currencyMultiplier = 92;
+  } else if (lower.includes('c$') || lower.includes('cad')) {
+    currencyMultiplier = 62;
+  } else if (lower.includes('a$') || lower.includes('aud')) {
+    currencyMultiplier = 55;
+  } else if (lower.includes('$') || lower.includes('usd')) {
+    currencyMultiplier = 85;
+  }
+
+  // 2. Detect Frequency Multiplier (annualized)
+  let defaultFreqMultiplier = 1;
+  if (/month|\/mo|\bpm\b|per month|\/m(?![a-z])|stipend/i.test(lower)) {
+    defaultFreqMultiplier = 12;
+  } else if (/week|\/wk|per week/i.test(lower)) {
+    defaultFreqMultiplier = 52;
+  } else if (/hour|\/hr|per hour/i.test(lower)) {
+    defaultFreqMultiplier = 2000; // ~2000 working hours/year
+  } else if (/day|\/day|per day/i.test(lower)) {
+    defaultFreqMultiplier = 250; // ~250 working days/year
+  }
+
+  // Clean commas for numerical matching: "1,00,000" -> "100000", "20,000" -> "20000"
+  const clean = lower.replace(/,/g, '');
+
+  // Detect general unit hints in the string
+  const hasCroreHint = /cr(?:ore)?s?\b/i.test(clean);
+  const hasLakhHint = /lpa|lakhs?|lacs?|lac|\bl\b/i.test(clean) || /\d\s*l(?![a-z])/i.test(clean);
+  const hasThousandHint = /thousand|\bk\b/i.test(clean) || /\d\s*k(?![a-z])/i.test(clean);
+  const hasMillionHint = /million|\bm\b/i.test(clean) || /\d\s*m(?![a-z])/i.test(clean);
+
+  // Match numbers and attached/following units
+  // Example matches: "10lpa", "10 lpa", "10L", "20k", "1.5cr", "20000", "55"
+  const itemRegex =
+    /(\d+(?:\.\d+)?)\s*(cr(?:ore)?s?|lpa|lakhs?|lacs?|lac|l(?![a-z])|k(?![a-z])|thousand|m(?![a-z])|million)?/gi;
+
+  const candidates: { num: number; unit: string; index: number }[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = itemRegex.exec(clean)) !== null) {
+    const num = parseFloat(m[1]);
+    if (isNaN(num)) continue;
+    const rawUnit = (m[2] || '').toLowerCase();
+    candidates.push({
+      num,
+      unit: rawUnit,
+      index: m.index,
+    });
+  }
+
+  if (candidates.length === 0) return 0;
+
+  // Propagate shared range unit: e.g. "10 - 15 LPA" or "20 - 25k"
+  // If a candidate lacks a unit but a neighbour in range has one, adopt it
+  for (let i = 0; i < candidates.length; i++) {
+    if (!candidates[i].unit) {
+      if (i + 1 < candidates.length && candidates[i + 1].unit) {
+        candidates[i].unit = candidates[i + 1].unit;
+      } else if (i > 0 && candidates[i - 1].unit) {
+        candidates[i].unit = candidates[i - 1].unit;
+      } else if (hasCroreHint && candidates[i].num < 100) {
+        candidates[i].unit = 'cr';
+      } else if (hasLakhHint && candidates[i].num < 1000) {
+        candidates[i].unit = 'lpa';
+      } else if (hasThousandHint && candidates[i].num < 1000) {
+        candidates[i].unit = 'k';
+      } else if (hasMillionHint && candidates[i].num < 1000) {
+        candidates[i].unit = 'm';
+      }
+    }
+  }
+
+  // Calculate annualized INR value for each candidate
+  const annualizedValues = candidates.map((cand) => {
+    let amount = cand.num;
+    const u = cand.unit;
+
+    if (/^cr/i.test(u)) {
+      amount *= 10000000;
+    } else if (/^(lpa|lakh|lac|l)/i.test(u)) {
+      amount *= 100000;
+    } else if (/^(k|thousand)/i.test(u)) {
+      amount *= 1000;
+    } else if (/^(m|million)/i.test(u)) {
+      amount *= 1000000;
+    }
+
+    // Apply frequency multiplier
+    // Note: LPA, Lakhs per annum, etc. are already annual by definition
+    let freq = defaultFreqMultiplier;
+    if (u === 'lpa' || /per annum|\/yr|\/year|p\.a\.|pa\b/i.test(clean)) {
+      // If expressly annual or LPA, don't multiply by monthly even if "month" is mentioned elsewhere in notes
+      freq = 1;
+    }
+
+    amount *= freq;
+    amount *= currencyMultiplier;
+
+    return amount;
+  });
+
+  return Math.max(...annualizedValues);
+}
+
+
+export interface DaysLeftInfo {
+  days: number | null;
+  displayDays: string;
+  label: string;
+  isOverdue: boolean;
+  isToday: boolean;
+}
+
+/**
+ * Calculate days remaining until job application deadline
+ */
+export function calculateDaysLeft(endDate?: string | null): DaysLeftInfo {
+  if (!endDate) {
+    return { days: null, displayDays: '—', label: 'NO DUE', isOverdue: false, isToday: false };
+  }
+
+  try {
+    const end = new Date(endDate);
+    if (isNaN(end.getTime())) {
+      return { days: null, displayDays: '—', label: 'NO DUE', isOverdue: false, isToday: false };
+    }
+
+    const today = new Date();
+    const todayZero = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const endZero = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
+
+    const diffMs = endZero - todayZero;
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+      return {
+        days: diffDays,
+        displayDays: String(Math.abs(diffDays)).padStart(2, '0'),
+        label: 'OVERDUE',
+        isOverdue: true,
+        isToday: false,
+      };
+    }
+
+    if (diffDays === 0) {
+      return {
+        days: 0,
+        displayDays: '00',
+        label: 'DUE TODAY',
+        isOverdue: false,
+        isToday: true,
+      };
+    }
+
+    return {
+      days: diffDays,
+      displayDays: String(diffDays).padStart(2, '0'),
+      label: 'DAYS LEFT',
+      isOverdue: false,
+      isToday: false,
+    };
+  } catch {
+    return { days: null, displayDays: '—', label: 'NO DUE', isOverdue: false, isToday: false };
+  }
 }

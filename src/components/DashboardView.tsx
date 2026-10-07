@@ -23,6 +23,7 @@ import { TrackConfirmModal } from './TrackConfirmModal';
 import { SettingsModal } from './SettingsModal';
 import { CommandPalette } from './CommandPalette';
 import { Button } from './ui/Button';
+import { AnalyticsView } from './AnalyticsView';
 import {
   Search,
   Sparkles,
@@ -324,6 +325,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
         if (sortBy === 'salary_asc') {
           const salA = parseSalaryToAnnualValue(a.salary);
           const salB = parseSalaryToAnnualValue(b.salary);
+          // If salary is not specified (0), push to the end
+          if (salA === 0 && salB > 0) return 1;
+          if (salB === 0 && salA > 0) return -1;
           if (salA !== salB) return salA - salB;
           return a.company.localeCompare(b.company);
         }
@@ -438,24 +442,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
             </nav>
           </div>
 
-          {/* Bottom Theme Toggle */}
-          <div className="pt-6 border-t border-brand-border dark:border-darkBrand-border">
-            <button
-              onClick={handleToggleDarkMode}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-brand-secondary dark:text-darkBrand-secondary hover:text-brand-ink dark:hover:text-darkBrand-ink hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
-            >
-              <div className="flex items-center gap-2.5">
-                {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-              </div>
-            </button>
+          <div className="px-3 py-2 text-[11px] font-mono text-brand-muted/70 dark:text-darkBrand-muted/70 select-none">
+            JobTrack v1.0
           </div>
         </aside>
       )}
 
       {/* 2. Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {!showSidebar && (
+        {!showSidebar ? (
           <Header
             onAddApplication={() => {
               setEditingApplication(null);
@@ -468,51 +463,69 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
             isPopup={mode === 'popup'}
             isSidePanel={mode === 'sidepanel'}
           />
+        ) : (
+          /* Top-Right Theme Toggle Only (No header bar) */
+          <div className="w-full flex justify-end px-6 sm:px-8 pt-4 sm:pt-6 select-none">
+            <button
+              onClick={handleToggleDarkMode}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium text-brand-secondary hover:text-brand-ink dark:text-darkBrand-secondary dark:hover:text-darkBrand-ink bg-white dark:bg-darkBrand-surface hover:bg-brand-pillBg dark:hover:bg-darkBrand-pillBg border border-brand-border dark:border-darkBrand-border transition-colors cursor-pointer shadow-2xs select-none"
+              aria-label="Toggle dark/light theme"
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {isDarkMode ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <span className="font-medium text-brand-ink dark:text-darkBrand-ink">Light Mode</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-indigo-500" />
+                  <span className="font-medium text-brand-ink dark:text-darkBrand-ink">Dark Mode</span>
+                </>
+              )}
+            </button>
+          </div>
         )}
 
-        <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-8 space-y-6">
-          {/* Tabato Title Section */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-brand-ink dark:text-darkBrand-ink">
-                {activeNav === 'analytics'
-                  ? 'Analytics'
-                  : activeNav === 'settings'
-                  ? 'Settings'
-                  : 'All Applications'}
-              </h1>
-              <p className="text-xs sm:text-sm text-brand-secondary dark:text-darkBrand-secondary mt-1">
-                {activeNav === 'analytics'
-                  ? 'Track your application search velocity, conversion rates, and response metrics.'
-                  : 'See your scheduled events from your calendar and tracked job listings.'}
-              </p>
-            </div>
+        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-8 pt-2 sm:pt-4 pb-8 space-y-6">
+          {/* Tabato Title Section (shown for Applications and Settings) */}
+          {activeNav !== 'analytics' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-brand-ink dark:text-darkBrand-ink">
+                  {activeNav === 'settings' ? 'Settings' : 'All Applications'}
+                </h1>
+                <p className="text-xs sm:text-sm text-brand-secondary dark:text-darkBrand-secondary mt-1">
+                  See your scheduled events from your calendar and tracked job listings.
+                </p>
+              </div>
 
-            {/* Quick Action Buttons */}
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setEditingApplication(null);
-                  setIsFormModalOpen(true);
-                }}
-                leftIcon={<Plus className="w-3.5 h-3.5" />}
-              >
-                Add Manually
-              </Button>
+              {/* Quick Action Buttons */}
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingApplication(null);
+                    setIsFormModalOpen(true);
+                  }}
+                  leftIcon={<Plus className="w-3.5 h-3.5" />}
+                >
+                  Add Manually
+                </Button>
 
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={handleTrackCurrentPage}
-                isLoading={isExtracting}
-                leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-              >
-                Track Current Tab
-              </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={handleTrackCurrentPage}
+                  isLoading={isExtracting}
+                  leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+                >
+                  Track Current Tab
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
 
           {trackError && (
             <div className="p-3.5 rounded-xl bg-terracotta-50 dark:bg-terracotta-900/30 border border-terracotta-200 dark:border-terracotta-800/40 text-terracotta-700 dark:text-terracotta-300 text-xs flex items-center justify-between gap-3 shadow-subtle">
@@ -535,68 +548,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
           )}
 
           {activeNav === 'analytics' ? (
-            /* Analytics Section */
-            <div className="space-y-6 pt-2">
-              <div className="p-6 rounded-2xl border border-brand-border dark:border-darkBrand-border bg-white dark:bg-darkBrand-surface shadow-subtle space-y-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-terracotta-500/10 text-terracotta-600 dark:text-terracotta-400 flex items-center justify-center">
-                    <BarChart2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-semibold text-brand-ink dark:text-darkBrand-ink">
-                      Application Analytics
-                    </h2>
-                    <p className="text-xs text-brand-secondary dark:text-darkBrand-secondary">
-                      Comprehensive insights and performance metrics across your job search.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                  <div className="p-4 rounded-xl bg-brand-pillBg dark:bg-darkBrand-pillBg border border-brand-border/60 dark:border-darkBrand-border/60 space-y-1">
-                    <span className="block text-[11px] font-medium text-brand-secondary dark:text-darkBrand-secondary uppercase tracking-wider">
-                      Total Tracked
-                    </span>
-                    <span className="block text-2xl font-bold font-mono text-brand-ink dark:text-darkBrand-ink">
-                      {applications.length}
-                    </span>
-                  </div>
-                  <div className="p-4 rounded-xl bg-brand-pillBg dark:bg-darkBrand-pillBg border border-brand-border/60 dark:border-darkBrand-border/60 space-y-1">
-                    <span className="block text-[11px] font-medium text-brand-secondary dark:text-darkBrand-secondary uppercase tracking-wider">
-                      This Month
-                    </span>
-                    <span className="block text-2xl font-bold font-mono text-brand-ink dark:text-darkBrand-ink">
-                      {applications.filter((a) => a.appliedAt && a.appliedAt.startsWith(new Date().toISOString().slice(0, 7))).length}
-                    </span>
-                  </div>
-                  <div className="p-4 rounded-xl bg-brand-pillBg dark:bg-darkBrand-pillBg border border-brand-border/60 dark:border-darkBrand-border/60 space-y-1">
-                    <span className="block text-[11px] font-medium text-brand-secondary dark:text-darkBrand-secondary uppercase tracking-wider">
-                      Active In Progress
-                    </span>
-                    <span className="block text-2xl font-bold font-mono text-brand-ink dark:text-darkBrand-ink">
-                      {applications.filter((a) => a.status !== 'Rejected' && a.status !== 'Withdrawn').length}
-                    </span>
-                  </div>
-                  <div className="p-4 rounded-xl bg-brand-pillBg dark:bg-darkBrand-pillBg border border-brand-border/60 dark:border-darkBrand-border/60 space-y-1">
-                    <span className="block text-[11px] font-medium text-brand-secondary dark:text-darkBrand-secondary uppercase tracking-wider">
-                      Offers
-                    </span>
-                    <span className="block text-2xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                      {applications.filter((a) => a.status === 'Offer').length}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-6 rounded-xl border border-dashed border-brand-border dark:border-darkBrand-border text-center space-y-1.5 text-xs text-brand-secondary dark:text-darkBrand-secondary bg-black/[0.01] dark:bg-white/[0.01]">
-                  <p className="font-semibold text-sm text-brand-ink dark:text-darkBrand-ink">
-                    Advanced Analytics & Charts
-                  </p>
-                  <p className="max-w-md mx-auto text-brand-muted dark:text-darkBrand-muted">
-                    Conversion funnel, interview response rates, and salary distribution graphs will be available in the upcoming analytics expansion.
-                  </p>
-                </div>
-              </div>
-            </div>
+            /* Modern ZenZest-Inspired Analytics Dashboard */
+            <AnalyticsView
+              applications={applications}
+              onNavigateToApplications={() => handleNavClick('applications')}
+              onOpenApplicationDetail={(app) => {
+                setEditingApplication(app);
+                setIsFormModalOpen(true);
+              }}
+            />
           ) : (
             <>
               {/* Tabato Segmented Filter Pill Bar (All, Applied, In this month, Past tracks) */}

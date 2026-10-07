@@ -192,7 +192,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <span>AI Extraction Provider</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div id="tutorial-step-2-provider" className="grid grid-cols-2 gap-2.5 rounded-xl transition-all duration-200">
             <div>
               <label className="block text-xs font-medium text-brand-ink dark:text-darkBrand-ink mb-1">
                 Provider
@@ -221,7 +221,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           {provider !== 'heuristic' && (
-            <div className="space-y-2.5">
+            <div id="tutorial-step-3-apikey" className="space-y-2.5 rounded-xl transition-all duration-200">
               <div>
                 <label className="block text-xs font-medium text-brand-ink dark:text-darkBrand-ink mb-1">
                   API Key

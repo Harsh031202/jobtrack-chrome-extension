@@ -7,7 +7,6 @@ import {
   Sun,
   Moon,
   ExternalLink,
-  Sidebar,
   Command,
 } from 'lucide-react';
 
@@ -36,12 +35,6 @@ export const Header: React.FC<HeaderProps> = ({
       chrome.tabs.create({ url });
     } else {
       window.open('/dashboard.html', '_blank');
-    }
-  };
-
-  const handleOpenSidePanel = async () => {
-    if (typeof chrome !== 'undefined' && chrome.runtime) {
-      chrome.runtime.sendMessage({ action: 'OPEN_SIDEPANEL' });
     }
   };
 
@@ -86,17 +79,6 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
-
-          {isPopup && (
-            <button
-              onClick={handleOpenSidePanel}
-              className="p-1.5 text-brand-secondary hover:text-brand-ink dark:text-darkBrand-secondary dark:hover:text-darkBrand-ink rounded-lg hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors cursor-pointer"
-              aria-label="Open Side Panel"
-              title="Open Side Panel"
-            >
-              <Sidebar className="w-4 h-4" />
-            </button>
-          )}
 
           {(isPopup || isSidePanel) && (
             <button

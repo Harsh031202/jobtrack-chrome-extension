@@ -4,7 +4,7 @@ import { StatusBadge } from './StatusBadge';
 import { ApplicationDetail } from './ApplicationDetail';
 import { CompanyLogo } from './CompanyLogo';
 import { ChevronDown, MapPin, Clock, Users } from 'lucide-react';
-import { formatDisplayDate, formatDateBlock, formatDueByDate } from '../lib/normalizer';
+import { formatDisplayDate, formatDateBlock, formatDueByDate, calculateDaysLeft } from '../lib/normalizer';
 
 interface ApplicationCardProps {
   application: JobApplication;
@@ -46,10 +46,9 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
   const [isDateHovered, setIsDateHovered] = useState(false);
 
   // Default date shown is the date applied/tracked
-  const { dayName: appliedDayName, dayNumber: appliedDayNumber, monthName: appliedMonthName, year: appliedYear } = formatDateBlock(application.appliedAt);
-  const { dayNumber: dueDayNumber, monthName: dueMonthName, year: dueYear } = formatDateBlock(application.endDate);
+  const { dayName: appliedDayName, dayNumber: appliedDayNumber } = formatDateBlock(application.appliedAt);
   const hasDueDate = Boolean(application.endDate);
-  const isDifferentMonth = Boolean(hasDueDate && (dueMonthName !== appliedMonthName || dueYear !== appliedYear));
+  const daysLeftInfo = calculateDaysLeft(application.endDate);
 
   return (
     <div
@@ -67,14 +66,18 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
         className="px-4 py-3.5 select-none cursor-pointer hover:bg-black/[0.015] dark:hover:bg-white/[0.015] transition-colors"
       >
         <div className="flex items-center justify-between gap-3">
-          {/* 1. Tabato Left Date Block with 0.3s Delayed Smooth Cross-fade Animation */}
+          {/* 1. Tabato Left Date Block with 0.3s Delayed Smooth Cross-fade Animation to Days Left */}
           <div
             className="flex items-center shrink-0 cursor-pointer"
             onMouseEnter={() => setIsDateHovered(true)}
             onMouseLeave={() => setIsDateHovered(false)}
-            title={hasDueDate ? `Due by ${formatDueByDate(application.endDate)}` : 'No deadline set'}
+            title={
+              hasDueDate
+                ? `${daysLeftInfo.label === 'OVERDUE' ? 'Overdue' : `${daysLeftInfo.days} days left`} • Due by ${formatDueByDate(application.endDate)}`
+                : 'No deadline set'
+            }
           >
-            <div className="w-12 h-12 relative select-none flex items-center justify-center">
+            <div className="w-[54px] h-12 relative select-none flex items-center justify-center">
               {/* Default State: Applied Date (smooth fade out on hover) */}
               <div
                 className={`absolute inset-0 flex flex-col items-center justify-center text-center transition-opacity ease-in-out ${
@@ -84,7 +87,7 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
                 }`}
               >
                 <span
-                  className={`block text-[11px] font-semibold uppercase tracking-wider ${
+                  className={`block text-[11px] font-semibold uppercase tracking-wider text-center leading-none ${
                     isUrgent
                       ? 'text-terracotta-500 font-bold'
                       : 'text-brand-secondary dark:text-darkBrand-secondary'
@@ -93,7 +96,7 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
                   {appliedDayName}
                 </span>
                 <span
-                  className={`block text-2xl font-bold font-sans tracking-tight leading-none mt-0.5 ${
+                  className={`block text-2xl font-bold font-sans tracking-tight leading-none mt-1 text-center ${
                     isUrgent
                       ? 'text-terracotta-500'
                       : 'text-brand-ink dark:text-darkBrand-ink'
@@ -103,7 +106,7 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
                 </span>
               </div>
 
-              {/* Hover State: "Due by" + Due Date (fade in delayed by 0.3s, 3-lines if different month) */}
+              {/* Hover State: "Days left XX" (neatly aligned in red, delayed by 0.3s) */}
               <div
                 className={`absolute inset-0 flex flex-col items-center justify-center text-center transition-opacity ease-in-out ${
                   isDateHovered
@@ -111,28 +114,12 @@ export const ApplicationCard: React.FC<ApplicationCardProps> = ({
                     : 'opacity-0 duration-300 delay-0 pointer-events-none'
                 }`}
               >
-                {isDifferentMonth ? (
-                  <>
-                    <span className="block text-[9px] font-semibold uppercase tracking-tight text-red-500 dark:text-red-400 whitespace-nowrap leading-tight">
-                      due by
-                    </span>
-                    <span className="block text-xl font-bold font-sans tracking-tight leading-none text-red-500 dark:text-red-400 my-0.5">
-                      {dueDayNumber}
-                    </span>
-                    <span className="block text-[9px] font-bold uppercase tracking-wider text-red-500 dark:text-red-400 leading-tight">
-                      {dueMonthName}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="block text-[10px] font-semibold uppercase tracking-tight text-red-500 dark:text-red-400 whitespace-nowrap">
-                      due by
-                    </span>
-                    <span className="block text-2xl font-bold font-sans tracking-tight leading-none mt-0.5 text-red-500 dark:text-red-400">
-                      {hasDueDate ? dueDayNumber : '—'}
-                    </span>
-                  </>
-                )}
+                <span className="block text-[8px] font-bold uppercase tracking-tight text-red-500 dark:text-red-400 whitespace-nowrap leading-none text-center">
+                  {daysLeftInfo.label}
+                </span>
+                <span className="block text-2xl font-bold font-sans tracking-tight leading-none text-red-500 dark:text-red-400 mt-1 text-center">
+                  {daysLeftInfo.displayDays}
+                </span>
               </div>
             </div>
 
