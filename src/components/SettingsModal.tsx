@@ -4,6 +4,7 @@ import { JobApplication } from '../types/application';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 import { createLLMProvider } from '../lib/llm/provider';
 import {
   exportApplicationsToJson,
@@ -194,21 +195,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <div id="tutorial-step-2-provider" className="grid grid-cols-2 gap-2.5 rounded-xl transition-all duration-200">
             <div>
-              <label className="block text-xs font-medium text-brand-ink dark:text-darkBrand-ink mb-1">
-                Provider
-              </label>
-              <select
+              <Select<AIProviderType>
+                label="Provider"
                 value={provider}
-                onChange={(e) => handleProviderChange(e.target.value as AIProviderType)}
-                className="w-full rounded-xl border border-brand-border dark:border-darkBrand-border bg-white dark:bg-darkBrand-elevated px-3 py-2 text-xs text-brand-ink dark:text-darkBrand-ink focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 cursor-pointer shadow-subtle"
-              >
-                <option value="openrouter">OpenRouter (openrouter/free, etc.)</option>
-                <option value="gemini">Google Gemini</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic (Claude)</option>
-                <option value="custom">Custom / Local Proxy</option>
-                <option value="heuristic">Offline Heuristic Engine (No API key)</option>
-              </select>
+                onChange={(val) => handleProviderChange(val)}
+                options={[
+                  { value: 'openrouter', label: 'OpenRouter (openrouter/free, etc.)' },
+                  { value: 'gemini', label: 'Google Gemini' },
+                  { value: 'openai', label: 'OpenAI' },
+                  { value: 'anthropic', label: 'Anthropic (Claude)' },
+                  { value: 'custom', label: 'Custom / Local Proxy' },
+                  { value: 'heuristic', label: 'Offline Heuristic Engine (No API key)' },
+                ]}
+                size="sm"
+              />
             </div>
 
             <Input

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { X, ArrowLeft, Sparkles, Sliders, Cpu, Key, Briefcase } from 'lucide-react';
+import { X, ArrowLeft, Sliders, Cpu, Key, Briefcase } from 'lucide-react';
 import { Button } from './ui/Button';
 
 export interface TutorialStepInfo {
@@ -306,8 +306,7 @@ export const InteractiveTutorial: React.FC<InteractiveTutorialProps> = ({
         {/* Card Header: Step Pill & Close */}
         <div className="flex items-center justify-between pb-1">
           <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-terracotta-50 text-terracotta-600 dark:bg-terracotta-500/15 dark:text-terracotta-400 border border-terracotta-200/50 dark:border-terracotta-500/20">
-              <Sparkles className="w-3 h-3 text-terracotta-500" />
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-terracotta-50 text-terracotta-600 dark:bg-terracotta-500/15 dark:text-terracotta-400 border border-terracotta-200/50 dark:border-terracotta-500/20">
               {currentStepInfo.badge}
             </span>
           </div>

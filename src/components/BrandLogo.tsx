@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface BrandLogoProps {
   size?: 'sm' | 'md' | 'lg';
@@ -12,54 +12,67 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   showText = true,
   className = '',
 }) => {
+  const [imgError, setImgError] = useState(false);
+
   const iconSizes = {
-    sm: 'w-4 h-4',
-    md: 'w-5 h-5',
-    lg: 'w-7 h-7',
+    sm: 'w-5 h-5 rounded-md',
+    md: 'w-7 h-7 rounded-lg',
+    lg: 'w-9 h-9 rounded-xl',
   };
 
   const textSizes = {
-    sm: 'text-xs',
-    md: 'text-sm',
-    lg: 'text-lg',
+    sm: 'text-sm',
+    md: 'text-lg',
+    lg: 'text-xl',
   };
 
+  const iconUrl =
+    typeof chrome !== 'undefined' && chrome.runtime?.getURL
+      ? chrome.runtime.getURL('icons/icon-48.png')
+      : '/icons/icon-48.png';
+
   return (
-    <div className={`flex items-center gap-2 select-none ${className}`}>
-      {/* Tabato-inspired 4-petal geometric asterisk symbol */}
-      <svg
-        className={`${iconSizes[size]} text-brand-secondary/80 dark:text-darkBrand-secondary shrink-0 transition-colors`}
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        {/* Four symmetrical organic petals curved inward and outward */}
-        <path
-          d="M12 2C13.2 5.5 15.5 7.8 19 9C15.5 10.2 13.2 12.5 12 16C10.8 12.5 8.5 10.2 5 9C8.5 7.8 10.8 5.5 12 2Z"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+    <div className={`flex items-center gap-2.5 select-none ${className}`}>
+      {/* Official JobTrack Brand Icon */}
+      {!imgError ? (
+        <img
+          src={iconUrl}
+          alt="JobTrack Logo"
+          className={`${iconSizes[size]} shrink-0 shadow-xs object-cover border border-slate-800/40`}
+          onError={() => setImgError(true)}
         />
-        <path
-          d="M8.5 4.5C9.5 8 11.8 10.3 15.3 11.3C11.8 12.3 9.5 14.6 8.5 18.1C7.5 14.6 5.2 12.3 1.7 11.3C5.2 10.3 7.5 8 8.5 4.5Z"
-          className="opacity-40"
+      ) : (
+        <svg
+          viewBox="0 0 32 32"
+          className={`${iconSizes[size]} shrink-0 shadow-xs select-none`}
           fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          transform="rotate(45 12 12)"
-        />
-      </svg>
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          {/* Rounded tile background */}
+          <rect width="32" height="32" rx="7.5" fill="#18191D" />
+          <rect x="0.5" y="0.5" width="31" height="31" rx="7" stroke="#2B323D" strokeWidth="1" />
+          {/* Emerald status indicator dot */}
+          <circle cx="10.5" cy="10" r="2.5" fill="#10B981" />
+          {/* Geometric J checklist mark */}
+          <path
+            d="M15 9.5H22V19C22 21.8 19.8 24 17 24C14.2 24 12 21.8 12 19V17"
+            stroke="#FFFFFF"
+            strokeWidth="2.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
 
       {showText && (
-        <span
-          className={`font-semibold tracking-tight text-brand-ink dark:text-darkBrand-ink ${textSizes[size]}`}
-        >
-          JobTrack
-        </span>
+        <div className={`flex items-baseline tracking-tight font-sans ${textSizes[size]}`}>
+          <span className="font-extrabold text-brand-ink dark:text-darkBrand-ink">
+            Job
+          </span>
+          <span className="font-black text-terracotta-500 dark:text-terracotta-400">
+            Track
+          </span>
+        </div>
       )}
     </div>
   );

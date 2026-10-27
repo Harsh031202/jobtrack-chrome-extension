@@ -3,6 +3,8 @@ import { JobApplication, ApplicationStatus, APPLICATION_STATUSES } from '../type
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { Select } from './ui/Select';
+import { STATUS_DOT_COLORS } from './StatusSelect';
 import { Calendar, Users } from 'lucide-react';
 
 interface ApplicationFormModalProps {
@@ -169,20 +171,17 @@ export const ApplicationFormModal: React.FC<ApplicationFormModalProps> = ({
             required
           />
           <div>
-            <label className="block text-xs font-medium text-brand-ink dark:text-darkBrand-ink mb-1">
-              Status
-            </label>
-            <select
+            <Select<ApplicationStatus>
+              label="Status"
               value={status}
-              onChange={(e) => setStatus(e.target.value as ApplicationStatus)}
-              className="w-full rounded-xl border border-brand-border dark:border-darkBrand-border bg-white dark:bg-darkBrand-surface px-3 py-2 text-xs text-brand-ink dark:text-darkBrand-ink font-medium focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 shadow-subtle"
-            >
-              {APPLICATION_STATUSES.map((st) => (
-                <option key={st} value={st}>
-                  {st}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setStatus(val)}
+              options={APPLICATION_STATUSES.map((st) => ({
+                value: st,
+                label: st,
+                dotColor: STATUS_DOT_COLORS[st] || 'bg-brand-secondary',
+              }))}
+              size="sm"
+            />
           </div>
         </div>
 

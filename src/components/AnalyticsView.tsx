@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { JobApplication } from '../types/application';
 import { Button } from './ui/Button';
+import { Select } from './ui/Select';
 import { parseSalaryToAnnualValue } from '../lib/normalizer';
 import { exportApplicationsToCsv, exportApplicationsToJson } from '../lib/export-import';
 import {
@@ -9,7 +10,6 @@ import {
   Download,
   FileSpreadsheet,
   Target,
-  ChevronDown,
   MoreVertical,
 } from 'lucide-react';
 
@@ -327,32 +327,25 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
       };
     });
 
-    // Default fallback skills if user has few entries
-    const fallbackList = [
-      { name: 'TypeScript', count: 6, percent: 83, avgCTC: 52.5 },
-      { name: 'Go', count: 5, percent: 71, avgCTC: 58.0 },
-      { name: 'Distributed Systems', count: 4, percent: 57, avgCTC: 65.0 },
-      { name: 'React', count: 4, percent: 57, avgCTC: 42.0 },
-      { name: 'PostgreSQL', count: 3, percent: 43, avgCTC: 48.0 },
-      { name: 'AWS', count: 3, percent: 43, avgCTC: 50.0 },
-      { name: 'Python', count: 3, percent: 43, avgCTC: 46.5 },
-      { name: 'C++', count: 2, percent: 29, avgCTC: 55.0 },
-      { name: 'Kafka', count: 2, percent: 29, avgCTC: 52.0 },
-      { name: 'Docker', count: 2, percent: 29, avgCTC: 45.0 },
-    ];
+    // If no applications are tracked or no skills found, do not display any bars
+    if (applications.length === 0 || parsedSkills.length === 0) {
+      return {
+        skills: [],
+        maxSkillCount: 1,
+        topSkill: null,
+        hasData: false,
+      };
+    }
 
-    const sortedList =
-      parsedSkills.length >= 4
-        ? parsedSkills.sort((a, b) => b.count - a.count).slice(0, 10)
-        : fallbackList.slice(0, 10);
-
+    const sortedList = parsedSkills.sort((a, b) => b.count - a.count).slice(0, 10);
     const maxSkillCount = Math.max(...sortedList.map((s) => s.count), 1);
-    const topSkill = sortedList[0] || fallbackList[0];
+    const topSkill = sortedList[0] || null;
 
     return {
       skills: sortedList,
       maxSkillCount,
       topSkill,
+      hasData: sortedList.length > 0,
     };
   }, [applications, metrics.avgSalaryLPA]);
 
@@ -631,17 +624,19 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
               </p>
             </div>
 
-            <div className="relative">
-              <select
+            <div className="w-28">
+              <Select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
+                onChange={(val) => setStatusFilter(val as any)}
+                options={[
+                  { value: 'all', label: 'All Time' },
+                  { value: '30days', label: 'Last 30 Days' },
+                ]}
+                variant="pill"
+                size="xs"
+                align="right"
                 aria-label="Filter status breakdown timeline"
-                className="text-[11px] font-semibold text-brand-secondary dark:text-darkBrand-secondary bg-brand-pillBg dark:bg-darkBrand-pillBg border border-brand-border dark:border-darkBrand-border rounded-lg px-2.5 py-1 appearance-none pr-6 cursor-pointer focus:outline-none"
-              >
-                <option value="all">All Time</option>
-                <option value="30days">Last 30 Days</option>
-              </select>
-              <ChevronDown className="w-3 h-3 absolute right-1.5 top-1/2 -translate-y-1/2 text-brand-secondary pointer-events-none" />
+              />
             </div>
           </div>
 
@@ -766,90 +761,112 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({
             </div>
           </div>
 
-          {/* Prominent Hero Stat with Pill Badge */}
-          <div className="flex flex-wrap items-center gap-3 mt-3">
-            <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-brand-ink dark:text-darkBrand-ink font-sans">
-              {fullWidthSkillsData.topSkill.name}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#EAFBF0] text-[#1EAA57] dark:bg-emerald-500/15 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-500/20">
-              <TrendingUp className="w-3.5 h-3.5" />
-              #1 Most in Demand
-            </span>
-          </div>
-          <p className="text-xs sm:text-sm text-brand-secondary dark:text-darkBrand-secondary mt-1 font-medium">
-            Required in {fullWidthSkillsData.topSkill.count} of your active roles ({fullWidthSkillsData.topSkill.percent}% match rate)
-          </p>
+          {/* Hero Stat or Empty Description */}
+          {fullWidthSkillsData.hasData && fullWidthSkillsData.topSkill ? (
+            <>
+              <div className="flex flex-wrap items-center gap-3 mt-3">
+                <span className="text-3xl sm:text-4xl font-extrabold tracking-tight text-brand-ink dark:text-darkBrand-ink font-sans">
+                  {fullWidthSkillsData.topSkill.name}
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#EAFBF0] text-[#1EAA57] dark:bg-emerald-500/15 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-500/20">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  #1 Most in Demand
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-brand-secondary dark:text-darkBrand-secondary mt-1 font-medium">
+                Required in {fullWidthSkillsData.topSkill.count} of your active roles ({fullWidthSkillsData.topSkill.percent}% match rate)
+              </p>
+            </>
+          ) : (
+            <p className="text-xs sm:text-sm text-brand-secondary dark:text-darkBrand-secondary mt-1 font-medium">
+              Analyze key skill requirements and industry demand across your tracked job listings.
+            </p>
+          )}
         </div>
 
-        {/* Slender Full-Height Slot Pillars with Vibrant Orange Bars (Dribbble Signature Design) */}
-        <div className="relative mt-8 sm:mt-10 pt-8 pb-2">
-          <div className="h-56 sm:h-64 flex items-end justify-between gap-2 sm:gap-4 md:gap-5 px-1 sm:px-4">
-            {fullWidthSkillsData.skills.map((skill, idx) => {
-              const heightPercent = Math.max(
-                Math.round((skill.count / fullWidthSkillsData.maxSkillCount) * 82),
-                18
-              );
-              const isHovered = activeSkillBarIndex === idx;
-              // Clean name for x-axis wrapping: removes trailing parentheticals so 2 lines wrap cleanly
-              const cleanName = skill.name.replace(/\s*\([^)]*\)$/, '');
+        {/* Slender Full-Height Slot Pillars with Vibrant Orange Bars (Only if data exists) */}
+        {fullWidthSkillsData.hasData && fullWidthSkillsData.skills.length > 0 ? (
+          <div className="relative mt-8 sm:mt-10 pt-8 pb-2">
+            <div className="h-56 sm:h-64 flex items-end justify-between gap-2 sm:gap-4 md:gap-5 px-1 sm:px-4">
+              {fullWidthSkillsData.skills.map((skill, idx) => {
+                const heightPercent = Math.max(
+                  Math.round((skill.count / fullWidthSkillsData.maxSkillCount) * 82),
+                  18
+                );
+                const isHovered = activeSkillBarIndex === idx;
+                // Clean name for x-axis wrapping: removes trailing parentheticals so 2 lines wrap cleanly
+                const cleanName = skill.name.replace(/\s*\([^)]*\)$/, '');
 
-              return (
-                <div
-                  key={skill.name}
-                  className="relative flex-1 min-w-0 flex flex-col items-center h-full justify-end group cursor-pointer"
-                  onMouseEnter={() => setActiveSkillBarIndex(idx)}
-                  onMouseLeave={() => setActiveSkillBarIndex(0)}
-                >
-                  {/* Floating Tooltip with Pointer (Anchored right above the orange bar's top) */}
+                return (
                   <div
-                    className={`absolute z-30 transition-all duration-200 ease-out pointer-events-none ${
-                      isHovered
-                        ? 'opacity-100 -translate-y-1 scale-100'
-                        : 'opacity-0 translate-y-0 scale-95'
-                    }`}
-                    style={{
-                      bottom: `calc(${heightPercent}% + 10px)`,
-                    }}
+                    key={skill.name}
+                    className="relative flex-1 min-w-0 flex flex-col items-center h-full justify-end group cursor-pointer"
+                    onMouseEnter={() => setActiveSkillBarIndex(idx)}
+                    onMouseLeave={() => setActiveSkillBarIndex(0)}
                   >
-                    <div className="bg-[#111827] dark:bg-black text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap border border-white/10 flex items-center gap-1.5">
-                      <span className="text-slate-300 font-medium">{cleanName}:</span>
-                      <span className="text-terracotta-400 font-bold">{skill.count} roles</span>
-                      <span className="text-emerald-400 font-mono text-[10px]">({skill.percent}%)</span>
-                    </div>
-                    <div className="w-2.5 h-2.5 bg-[#111827] dark:bg-black rotate-45 mx-auto -mt-1.5 border-r border-b border-white/10" />
-                  </div>
-
-                  {/* Rounded Rectangular Slot (Wider + Rounded Rectangle shape) */}
-                  <div className="w-6 sm:w-8 md:w-10 lg:w-12 h-full rounded-xl sm:rounded-2xl bg-[#F1F3F6] dark:bg-white/[0.07] relative flex items-end justify-center overflow-hidden">
-                    {/* Foreground Vibrant Terracotta Bar (Rounded Rectangle rising from bottom) */}
+                    {/* Floating Tooltip with Pointer (Anchored right above the orange bar's top) */}
                     <div
-                      className={`w-full rounded-t-xl sm:rounded-t-2xl transition-all duration-700 ease-out ${
-                        isHovered ? 'bg-[#EA580C] shadow-md brightness-105' : 'bg-terracotta-500'
+                      className={`absolute z-30 transition-all duration-200 ease-out pointer-events-none ${
+                        isHovered
+                          ? 'opacity-100 -translate-y-1 scale-100'
+                          : 'opacity-0 translate-y-0 scale-95'
                       }`}
                       style={{
-                        height: isLoaded ? `${heightPercent}%` : '0%',
+                        bottom: `calc(${heightPercent}% + 10px)`,
                       }}
-                    />
-                  </div>
-
-                  {/* 2-Line Fully Visible Centered Skill Label on X-Axis */}
-                  <div className="h-10 sm:h-12 flex items-start justify-center pt-2.5 w-full">
-                    <span
-                      className={`text-[10px] sm:text-xs font-medium text-center line-clamp-2 leading-[1.25] break-words max-w-[80px] sm:max-w-[100px] transition-colors select-none ${
-                        isHovered
-                          ? 'text-brand-ink dark:text-darkBrand-ink font-bold'
-                          : 'text-brand-secondary dark:text-darkBrand-secondary'
-                      }`}
-                      title={skill.name}
                     >
-                      {cleanName}
-                    </span>
+                      <div className="bg-[#111827] dark:bg-black text-white text-[11px] font-semibold px-2.5 py-1.5 rounded-lg shadow-xl whitespace-nowrap border border-white/10 flex items-center gap-1.5">
+                        <span className="text-slate-300 font-medium">{cleanName}:</span>
+                        <span className="text-terracotta-400 font-bold">{skill.count} roles</span>
+                        <span className="text-emerald-400 font-mono text-[10px]">({skill.percent}%)</span>
+                      </div>
+                      <div className="w-2.5 h-2.5 bg-[#111827] dark:bg-black rotate-45 mx-auto -mt-1.5 border-r border-b border-white/10" />
+                    </div>
+
+                    {/* Rounded Rectangular Slot (Wider + Rounded Rectangle shape) */}
+                    <div className="w-6 sm:w-8 md:w-10 lg:w-12 h-full rounded-xl sm:rounded-2xl bg-[#F1F3F6] dark:bg-white/[0.07] relative flex items-end justify-center overflow-hidden">
+                      {/* Foreground Vibrant Terracotta Bar (Rounded Rectangle rising from bottom) */}
+                      <div
+                        className={`w-full rounded-t-xl sm:rounded-t-2xl transition-all duration-700 ease-out ${
+                          isHovered ? 'bg-[#EA580C] shadow-md brightness-105' : 'bg-terracotta-500'
+                        }`}
+                        style={{
+                          height: isLoaded ? `${heightPercent}%` : '0%',
+                        }}
+                      />
+                    </div>
+
+                    {/* 2-Line Fully Visible Centered Skill Label on X-Axis */}
+                    <div className="h-10 sm:h-12 flex items-start justify-center pt-2.5 w-full">
+                      <span
+                        className={`text-[10px] sm:text-xs font-medium text-center line-clamp-2 leading-[1.25] break-words max-w-[80px] sm:max-w-[100px] transition-colors select-none ${
+                          isHovered
+                            ? 'text-brand-ink dark:text-darkBrand-ink font-bold'
+                            : 'text-brand-secondary dark:text-darkBrand-secondary'
+                        }`}
+                        title={skill.name}
+                      >
+                        {cleanName}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="mt-8 py-14 flex flex-col items-center justify-center text-center rounded-2xl border border-dashed border-brand-border dark:border-darkBrand-border bg-brand-pillBg/30 dark:bg-darkBrand-pillBg/20">
+            <div className="w-12 h-12 rounded-2xl bg-white dark:bg-darkBrand-surface border border-brand-border dark:border-darkBrand-border flex items-center justify-center text-brand-muted dark:text-darkBrand-secondary mb-3 shadow-xs">
+              <Target className="w-6 h-6 text-terracotta-500/70" />
+            </div>
+            <p className="text-sm font-semibold text-brand-ink dark:text-darkBrand-ink">
+              No skills data tracked yet
+            </p>
+            <p className="text-xs text-brand-secondary dark:text-darkBrand-secondary mt-1 max-w-sm px-4">
+              When you track job applications with required skills, this chart automatically visualizes market demand and your top targeted skills.
+            </p>
+          </div>
+        )}
       </div>
 
     </div>

@@ -24,7 +24,6 @@ import {
   Sun,
   Moon,
   ArrowRight,
-  Sparkles,
   HelpCircle,
 } from 'lucide-react';
 import { InteractiveTutorial } from '../components/InteractiveTutorial';
@@ -121,6 +120,37 @@ export const PopupApp: React.FC = () => {
   // Form & Settings modal
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get('jobtrack_pending_approval', (res) => {
+        if (res?.jobtrack_pending_approval) {
+          const item = res.jobtrack_pending_approval;
+          setPendingApproval(item);
+          if (item.extractedData) {
+            setExtractedJobData(item.extractedData);
+            setTabUrl(item.pageUrl || '');
+            setIsTrackModalOpen(true);
+          }
+        }
+      });
+
+      const listener = (changes: any, area: string) => {
+        if (area === 'local' && changes.jobtrack_pending_approval) {
+          const item = changes.jobtrack_pending_approval.newValue || null;
+          setPendingApproval(item);
+          if (item?.extractedData) {
+            setExtractedJobData(item.extractedData);
+            setTabUrl(item.pageUrl || '');
+            setIsTrackModalOpen(true);
+          }
+        }
+      };
+      chrome.storage.onChanged.addListener(listener);
+      return () => chrome.storage.onChanged.removeListener(listener);
+    }
+  }, []);
 
   // Interactive Onboarding Tutorial Tour State
   const popupContainerRef = useRef<HTMLDivElement>(null);
@@ -249,27 +279,50 @@ export const PopupApp: React.FC = () => {
   const handleTrackCurrent = async () => {
     setTrackError(null);
     setExtractionWarning(undefined);
-    setIsExtracting(true);
-    setIsTrackModalOpen(true);
 
     try {
-      const tabRes = await extractFromActiveTab();
-      if (!tabRes.success || !tabRes.pageData) {
-        setTrackError(tabRes.error || 'Failed to inspect current tab.');
+      if (typeof chrome === 'undefined' || !chrome.tabs) {
+        setIsExtracting(true);
+        setIsTrackModalOpen(true);
+        const tabRes = await extractFromActiveTab();
+        const currentSettings = settings || (await getSettings());
+        const extractionRes = await performJobExtraction(tabRes.pageData!, currentSettings.ai);
+        setExtractedJobData(extractionRes.data);
         setIsExtracting(false);
         return;
       }
 
-      const currentSettings = settings || (await getSettings());
-      const extractionRes = await performJobExtraction(tabRes.pageData, currentSettings.ai);
-
-      setExtractedJobData(extractionRes.data);
-      if (extractionRes.warning) {
-        setExtractionWarning(extractionRes.warning);
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.id) {
+        setTrackError('No active browser tab found.');
+        return;
       }
+
+      const tabUrl = tab.url || '';
+      if (
+        tabUrl.startsWith('chrome://') ||
+        tabUrl.startsWith('chrome-extension://') ||
+        tabUrl.startsWith('edge://') ||
+        tabUrl.startsWith('about:')
+      ) {
+        setTrackError('Cannot track internal browser pages. Please open a job listing.');
+        return;
+      }
+
+      // Delegate extraction to background service worker so closing popup / switching to YouTube will not cancel it!
+      chrome.runtime.sendMessage({
+        action: 'START_BACKGROUND_TRACKING',
+        tabId: tab.id,
+      });
+
+      setIsExtracting(true);
+
+      // Smoothly close the popup so the in-page pill takes over
+      setTimeout(() => {
+        window.close();
+      }, 150);
     } catch (err: any) {
-      setTrackError(err.message || 'Error extracting job details.');
-    } finally {
+      setTrackError(err.message || 'Error starting background tracking.');
       setIsExtracting(false);
     }
   };
@@ -363,6 +416,50 @@ export const PopupApp: React.FC = () => {
 
       {/* 2. Main Content Body */}
       <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+        {/* Pending Approval Banner if background extraction finished */}
+        {pendingApproval && (
+          <div className="p-3.5 rounded-2xl bg-terracotta-50 dark:bg-terracotta-900/30 border border-terracotta-200 dark:border-terracotta-800/40 flex items-center justify-between gap-3 shadow-subtle animate-in fade-in duration-200">
+            <div className="min-w-0 flex-1">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 dark:text-lime-400 uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Ready for approval
+              </span>
+              <p className="text-xs font-bold text-brand-ink dark:text-darkBrand-ink truncate mt-0.5">
+                {pendingApproval.extractedData?.role || 'Job Application'}
+              </p>
+              <p className="text-[11px] text-brand-secondary dark:text-darkBrand-secondary truncate">
+                {pendingApproval.extractedData?.company || 'Company'}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                size="xs"
+                variant="primary"
+                onClick={() => {
+                  setExtractedJobData(pendingApproval.extractedData);
+                  setTabUrl(pendingApproval.pageUrl || tabUrl);
+                  setIsTrackModalOpen(true);
+                }}
+              >
+                Approve
+              </Button>
+              <button
+                onClick={async () => {
+                  await chrome.storage.local.remove('jobtrack_pending_approval');
+                  setPendingApproval(null);
+                  try {
+                    await chrome.action.setBadgeText({ text: '' });
+                  } catch {}
+                }}
+                className="text-brand-muted hover:text-brand-ink dark:hover:text-darkBrand-ink text-xs p-1 cursor-pointer"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* HERO INTERACTION: Current Active Page & Primary CTA */}
         <div className="p-4 rounded-2xl border border-brand-border dark:border-darkBrand-border bg-white dark:bg-darkBrand-surface shadow-subtle space-y-3">
           {/* Status strip */}
@@ -411,7 +508,7 @@ export const PopupApp: React.FC = () => {
                   ) : justTracked ? (
                     <span className="text-white font-bold">✓</span>
                   ) : (
-                    <Sparkles className="w-3.5 h-3.5 text-white/90" />
+                    <Plus className="w-3.5 h-3.5 text-white/90" />
                   )}
                   <span>
                     {isExtracting
@@ -582,6 +679,13 @@ export const PopupApp: React.FC = () => {
         existingApplications={applications}
         onConfirmTrack={async (app) => {
           await saveApplication(app);
+          if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+            await chrome.storage.local.remove('jobtrack_pending_approval');
+            try {
+              await chrome.action.setBadgeText({ text: '' });
+            } catch {}
+          }
+          setPendingApproval(null);
           await refreshData();
           setJustTracked(true);
           setTimeout(() => setJustTracked(false), 2000);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { ApplicationStatus, APPLICATION_STATUSES } from '../types/application';
+import { Select, SelectOption } from './ui/Select';
 
 interface StatusSelectProps {
   value: ApplicationStatus;
@@ -8,27 +9,40 @@ interface StatusSelectProps {
   size?: 'xs' | 'sm';
 }
 
+export const STATUS_DOT_COLORS: Record<ApplicationStatus, string> = {
+  Applied: 'bg-indigo-500',
+  Screening: 'bg-sky-500',
+  Assessment: 'bg-amber-500',
+  Interview: 'bg-purple-500',
+  'Technical Interview': 'bg-purple-600',
+  'HR Interview': 'bg-purple-400',
+  Offer: 'bg-emerald-500',
+  Rejected: 'bg-coral-500',
+  Withdrawn: 'bg-slate-400',
+  'On Hold': 'bg-amber-500',
+};
+
 export const StatusSelect: React.FC<StatusSelectProps> = ({
   value,
   onChange,
   className = '',
   size = 'sm',
 }) => {
+  const options: SelectOption<ApplicationStatus>[] = APPLICATION_STATUSES.map((status) => ({
+    value: status,
+    label: status,
+    dotColor: STATUS_DOT_COLORS[status] || 'bg-brand-secondary',
+  }));
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value as ApplicationStatus)}
-      onClick={(e) => e.stopPropagation()}
-      className={`rounded-lg border border-brand-border dark:border-darkBrand-border bg-white dark:bg-darkBrand-surface font-medium text-brand-ink dark:text-darkBrand-ink transition-colors hover:border-brand-borderStrong dark:hover:border-darkBrand-borderStrong focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 cursor-pointer shadow-subtle ${
-        size === 'xs' ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'
-      } ${className}`}
-      aria-label="Change application status"
-    >
-      {APPLICATION_STATUSES.map((status) => (
-        <option key={status} value={status}>
-          {status}
-        </option>
-      ))}
-    </select>
+    <div onClick={(e) => e.stopPropagation()} className={className}>
+      <Select<ApplicationStatus>
+        options={options}
+        value={value}
+        onChange={onChange}
+        size={size}
+        aria-label="Change application status"
+      />
+    </div>
   );
 };

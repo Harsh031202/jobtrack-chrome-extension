@@ -20,13 +20,13 @@ import { StatsOverview, OverviewTabFilter } from './StatsOverview';
 import { ApplicationCard } from './ApplicationCard';
 import { ApplicationFormModal } from './ApplicationFormModal';
 import { TrackConfirmModal } from './TrackConfirmModal';
-import { SettingsModal } from './SettingsModal';
 import { CommandPalette } from './CommandPalette';
 import { Button } from './ui/Button';
+import { Select } from './ui/Select';
 import { AnalyticsView } from './AnalyticsView';
+import { SettingsView } from './SettingsView';
 import {
   Search,
-  Sparkles,
   Briefcase,
   AlertCircle,
   Plus,
@@ -77,7 +77,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
   const [extractionWarning, setExtractionWarning] = useState<string | undefined>();
   const [trackError, setTrackError] = useState<string | null>(null);
 
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -218,9 +217,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
   // Nav item handlers
   const handleNavClick = (nav: 'applications' | 'analytics' | 'settings') => {
     setActiveNav(nav);
-    if (nav === 'settings') {
-      setIsSettingsOpen(true);
-    }
   };
 
   const NAV_ITEMS = [
@@ -456,7 +452,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
               setEditingApplication(null);
               setIsFormModalOpen(true);
             }}
-            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenSettings={() => handleNavClick('settings')}
             onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
             isDarkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
@@ -488,12 +484,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
         )}
 
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-8 pt-2 sm:pt-4 pb-8 space-y-6">
-          {/* Tabato Title Section (shown for Applications and Settings) */}
-          {activeNav !== 'analytics' && (
+          {/* Applications View Header */}
+          {activeNav === 'applications' && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-brand-ink dark:text-darkBrand-ink">
-                  {activeNav === 'settings' ? 'Settings' : 'All Applications'}
+                  All Applications
                 </h1>
                 <p className="text-xs sm:text-sm text-brand-secondary dark:text-darkBrand-secondary mt-1">
                   See your scheduled events from your calendar and tracked job listings.
@@ -519,10 +515,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
                   variant="primary"
                   onClick={handleTrackCurrentPage}
                   isLoading={isExtracting}
-                  leftIcon={<Sparkles className="w-3.5 h-3.5" />}
                 >
                   Track Current Tab
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Settings View Header */}
+          {activeNav === 'settings' && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight text-brand-ink dark:text-darkBrand-ink">
+                  Settings
+                </h1>
+                <p className="text-xs sm:text-sm text-brand-secondary dark:text-darkBrand-secondary mt-1">
+                  Configure AI extraction provider, export backups, and data controls.
+                </p>
               </div>
             </div>
           )}
@@ -557,6 +566,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
                 setIsFormModalOpen(true);
               }}
             />
+          ) : activeNav === 'settings' ? (
+            settings && (
+              <SettingsView
+                settings={settings}
+                onSaveSettings={async (newSet) => {
+                  await saveSettings(newSet);
+                  setSettings(newSet);
+                }}
+                applications={applications}
+                onRefreshApplications={refreshData}
+                onClearAllData={async () => {
+                  await clearAllApplications();
+                  await refreshData();
+                }}
+                onLoadDemoData={async () => {
+                  await handleLoadDemoData();
+                  await refreshData();
+                }}
+              />
+            )
           ) : (
             <>
               {/* Tabato Segmented Filter Pill Bar (All, Applied, In this month, Past tracks) */}
@@ -596,45 +625,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
             {/* Source Filter & Sort By Dropdowns */}
             <div className="flex items-center gap-2">
               {uniqueSources.length > 0 && (
-                <select
-                  value={sourceFilter}
-                  onChange={(e) => setSourceFilter(e.target.value)}
-                  className="rounded-xl border border-brand-border dark:border-darkBrand-border bg-white dark:bg-darkBrand-surface px-3 py-2 text-xs font-medium text-brand-secondary dark:text-darkBrand-secondary hover:text-brand-ink dark:hover:text-darkBrand-ink focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 cursor-pointer shadow-subtle"
-                  aria-label="Filter by Source"
-                >
-                  <option value="All">All Sources</option>
-                  {uniqueSources.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-36">
+                  <Select
+                    options={[
+                      { value: 'All', label: 'All Sources' },
+                      ...uniqueSources.map((s) => ({ value: s, label: s })),
+                    ]}
+                    value={sourceFilter}
+                    onChange={(val) => setSourceFilter(val)}
+                    size="sm"
+                    align="right"
+                    aria-label="Filter by Source"
+                  />
+                </div>
               )}
 
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="rounded-xl border border-brand-border dark:border-darkBrand-border bg-white dark:bg-darkBrand-surface px-3 py-2 text-xs font-medium text-brand-secondary dark:text-darkBrand-secondary hover:text-brand-ink dark:hover:text-darkBrand-ink focus:outline-none focus:ring-2 focus:ring-terracotta-500/20 focus:border-terracotta-500 cursor-pointer shadow-subtle"
-                aria-label="Sort applications"
-              >
-                <optgroup label="Date & Time">
-                  <option value="appliedAt_desc">Date & Time (Newest)</option>
-                  <option value="appliedAt_asc">Date & Time (Oldest)</option>
-                  <option value="endDate_asc">Deadline (Closing Soonest)</option>
-                </optgroup>
-                <optgroup label="Company Name">
-                  <option value="company_asc">Company (A → Z)</option>
-                  <option value="company_desc">Company (Z → A)</option>
-                </optgroup>
-                <optgroup label="Vacancies">
-                  <option value="vacancies_desc">Vacancies (High → Low)</option>
-                  <option value="vacancies_asc">Vacancies (Low → High)</option>
-                </optgroup>
-                <optgroup label="CTC / Salary">
-                  <option value="salary_desc">CTC / Salary (High → Low)</option>
-                  <option value="salary_asc">CTC / Salary (Low → High)</option>
-                </optgroup>
-              </select>
+              <div className="w-56">
+                <Select
+                  options={[
+                    {
+                      groupLabel: 'Date & Time',
+                      options: [
+                        { value: 'appliedAt_desc', label: 'Date & Time (Newest)' },
+                        { value: 'appliedAt_asc', label: 'Date & Time (Oldest)' },
+                        { value: 'endDate_asc', label: 'Deadline (Closing Soonest)' },
+                      ],
+                    },
+                    {
+                      groupLabel: 'Company Name',
+                      options: [
+                        { value: 'company_asc', label: 'Company (A → Z)' },
+                        { value: 'company_desc', label: 'Company (Z → A)' },
+                      ],
+                    },
+                    {
+                      groupLabel: 'Vacancies',
+                      options: [
+                        { value: 'vacancies_desc', label: 'Vacancies (High → Low)' },
+                        { value: 'vacancies_asc', label: 'Vacancies (Low → High)' },
+                      ],
+                    },
+                    {
+                      groupLabel: 'CTC / Salary',
+                      options: [
+                        { value: 'salary_desc', label: 'CTC / Salary (High → Low)' },
+                        { value: 'salary_asc', label: 'CTC / Salary (Low → High)' },
+                      ],
+                    },
+                  ]}
+                  value={sortBy}
+                  onChange={(val) => setSortBy(val as any)}
+                  size="sm"
+                  align="right"
+                  aria-label="Sort applications"
+                />
+              </div>
             </div>
           </div>
 
@@ -757,33 +802,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
         isLoadingExtraction={isExtracting}
         extractionWarning={extractionWarning}
         hasApiKey={!!settings?.ai?.apiKey}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={() => handleNavClick('settings')}
       />
-
-      {/* Settings Modal */}
-      {settings && (
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => {
-            setIsSettingsOpen(false);
-            if (activeNav === 'settings') {
-              setActiveNav('applications');
-            }
-          }}
-          settings={settings}
-          onSaveSettings={async (newSet) => {
-            await saveSettings(newSet);
-            setSettings(newSet);
-          }}
-          applications={applications}
-          onRefreshApplications={refreshData}
-          onClearAllData={async () => {
-            await clearAllApplications();
-            await refreshData();
-          }}
-          onLoadDemoData={handleLoadDemoData}
-        />
-      )}
 
       {/* Command Palette */}
       <CommandPalette
@@ -794,7 +814,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
           setEditingApplication(null);
           setIsFormModalOpen(true);
         }}
-        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenSettings={() => handleNavClick('settings')}
         onFilterStatus={(st) => {
           if (st === 'Applied') {
             setOverviewFilter('applied');
@@ -803,7 +823,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
           }
           setClosingSoonOnly(false);
         }}
-        onExport={() => setIsSettingsOpen(true)}
+        onExport={() => handleNavClick('settings')}
       />
     </div>
   );
