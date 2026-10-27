@@ -41,10 +41,14 @@ export default {
           50: '#FDF5F3',
           100: '#FCEAE6',
           200: '#F9D5CD',
+          300: '#F5A99B',
           400: '#EE7356',
           500: '#E05638', // Iconic Tabato Terracotta
           600: '#CA472A',
           700: '#A9361D',
+          800: '#8A2B17',
+          900: '#702213',
+          950: '#3D120A',
         },
         // Accents
         indigo: {
@@ -71,10 +75,15 @@ export default {
         coral: {
           50: '#FFF5F3',
           100: '#FFEBE7',
+          200: '#FFD7D0',
+          300: '#FFAFA2',
           400: '#FF8A77',
           500: '#FF735C',
           600: '#EE5B43',
           700: '#C94029',
+          800: '#A63320',
+          900: '#88291A',
+          950: '#4A130B',
         },
         // Semantic status tokens
         status: {

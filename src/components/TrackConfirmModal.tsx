@@ -22,6 +22,7 @@ interface TrackConfirmModalProps {
   extractionWarning?: string;
   hasApiKey?: boolean;
   onOpenSettings?: () => void;
+  onDecline?: () => void;
 }
 
 export const TrackConfirmModal: React.FC<TrackConfirmModalProps> = ({
@@ -36,6 +37,7 @@ export const TrackConfirmModal: React.FC<TrackConfirmModalProps> = ({
   extractionWarning,
   hasApiKey = false,
   onOpenSettings,
+  onDecline,
 }) => {
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
@@ -180,24 +182,27 @@ export const TrackConfirmModal: React.FC<TrackConfirmModalProps> = ({
         <div className="space-y-3 text-xs">
           {/* Duplicate Detection Alert */}
           {duplicateResult.isDuplicate && duplicateResult.existingApp && (
-            <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 space-y-2">
-              <div className="flex items-start gap-2">
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/40 text-amber-950 dark:text-amber-100 space-y-2.5">
+              <div className="flex items-start gap-2.5">
                 <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-xs">This application already exists</p>
-                  <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                <div className="space-y-0.5">
+                  <p className="font-bold text-xs text-amber-900 dark:text-amber-200">
+                    This job application is already tracked
+                  </p>
+                  <p className="text-[11px] text-amber-800 dark:text-amber-300/90 font-medium">
                     {duplicateResult.existingApp.company} — {duplicateResult.existingApp.role}
                   </p>
-                  <p className="text-[10px] text-amber-700 dark:text-amber-400 font-mono mt-0.5">
+                  <p className="text-[10px] text-amber-700 dark:text-amber-400/80 font-mono">
                     Tracked on {formatDisplayDate(duplicateResult.existingApp.appliedAt)} • Status:{' '}
                     {duplicateResult.existingApp.status}
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 justify-end pt-0.5">
+              <div className="flex gap-2 justify-end pt-1 border-t border-amber-200/60 dark:border-amber-500/20">
                 <Button
                   size="xs"
                   variant="outline"
+                  className="border-amber-300 dark:border-amber-500/40 text-amber-900 dark:text-amber-200 hover:bg-amber-100/60 dark:hover:bg-amber-500/20"
                   onClick={() => {
                     onClose();
                     if (duplicateResult.existingApp) {
@@ -221,9 +226,9 @@ export const TrackConfirmModal: React.FC<TrackConfirmModalProps> = ({
 
           {/* API Key Hint if not configured */}
           {!hasApiKey && (
-            <div className="p-2.5 rounded-lg bg-brand-bg dark:bg-darkBrand-elevated border border-brand-border dark:border-darkBrand-border flex items-center justify-between text-xs gap-2">
+            <div className="p-2.5 rounded-xl bg-brand-pillBg dark:bg-darkBrand-elevated border border-brand-border dark:border-darkBrand-border flex items-center justify-between text-xs gap-2">
               <div>
-                <p className="font-medium text-brand-ink dark:text-darkBrand-ink flex items-center gap-1.5">
+                <p className="font-semibold text-brand-ink dark:text-darkBrand-ink flex items-center gap-1.5">
                   <Cpu className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                   <span>AI Extraction Ready</span>
                 </p>
@@ -247,8 +252,9 @@ export const TrackConfirmModal: React.FC<TrackConfirmModalProps> = ({
           )}
 
           {extractionWarning && (
-            <div className="p-2 rounded-lg bg-brand-hover dark:bg-darkBrand-elevated text-brand-secondary dark:text-darkBrand-secondary text-[11px] border border-brand-border dark:border-darkBrand-border">
-              {extractionWarning}
+            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-200 text-[11px] border border-amber-200 dark:border-amber-500/30 flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <span>{extractionWarning}</span>
             </div>
           )}
 
@@ -353,18 +359,31 @@ export const TrackConfirmModal: React.FC<TrackConfirmModalProps> = ({
             />
           </div>
 
-          {/* Footer Controls */}
-          <div className="flex items-center justify-between pt-2.5 border-t border-brand-border dark:border-darkBrand-border">
-            <p className="text-[11px] text-brand-secondary dark:text-darkBrand-secondary font-mono truncate max-w-[170px]">
-              Source: {extractedData?.source || 'Web'}
-            </p>
+          {/* Footer Controls — Structured 2-row layout to eliminate button overlap */}
+          <div className="pt-3 border-t border-brand-border dark:border-darkBrand-border space-y-2.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-brand-secondary dark:text-darkBrand-secondary font-mono truncate max-w-[180px]">
+                Source: {extractedData?.source || 'Web'}
+              </span>
+              {onDecline && (
+                <button
+                  type="button"
+                  onClick={onDecline}
+                  disabled={isSaving}
+                  className="text-coral-600 dark:text-coral-400 hover:text-coral-700 dark:hover:text-coral-300 font-semibold text-xs hover:underline cursor-pointer"
+                >
+                  Decline Application
+                </button>
+              )}
+            </div>
 
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-                Cancel
+            <div className="flex items-center justify-end gap-2.5">
+              <Button variant="ghost" size="sm" onClick={onClose} disabled={isSaving}>
+                Close
               </Button>
               <Button
                 variant="primary"
+                size="sm"
                 onClick={() => handleSave(false)}
                 isLoading={isSaving}
                 disabled={!company.trim() || !role.trim()}

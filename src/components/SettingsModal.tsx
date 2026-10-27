@@ -287,16 +287,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div
                   className={`p-2 rounded-lg text-xs flex items-center gap-1.5 ${
                     testResult.success
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-lime-300 border border-emerald-200 dark:border-emerald-800/50'
-                      : 'bg-coral-50 dark:bg-coral-950/40 text-coral-800 dark:text-coral-300 border border-coral-200 dark:border-coral-800/50'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30'
+                      : 'bg-coral-50 dark:bg-coral-500/15 text-coral-800 dark:text-coral-300 border border-coral-300 dark:border-coral-500/30'
                   }`}
                 >
                   {testResult.success ? (
-                    <CheckCircle className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                    <CheckCircle className="w-3.5 h-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                   ) : (
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-coral-600" />
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-coral-600 dark:text-coral-400" />
                   )}
-                  <span>{testResult.message}</span>
+                  <span className="font-medium">{testResult.message}</span>
                 </div>
               )}
             </div>
@@ -394,6 +394,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               )}
             </div>
           )}
+
+          {/* Clear All Data — Clean inline block inside Data Management */}
+          <div className="pt-2 border-t border-brand-border/60 dark:border-darkBrand-border/60">
+            {showClearConfirm ? (
+              <div className="p-2.5 rounded-xl bg-coral-50 dark:bg-coral-500/15 border border-coral-200 dark:border-coral-500/30 flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                <span className="text-[11px] font-semibold text-coral-700 dark:text-coral-300">
+                  Delete all {applications.length} applications?
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    size="xs"
+                    variant="danger"
+                    onClick={async () => {
+                      await onClearAllData();
+                      setShowClearConfirm(false);
+                    }}
+                  >
+                    Yes, Delete All
+                  </Button>
+                  <Button size="xs" variant="ghost" onClick={() => setShowClearConfirm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setShowClearConfirm(true)}
+                  className="text-[11px] text-coral-600 dark:text-coral-400 hover:text-coral-700 dark:hover:text-coral-300 hover:underline font-medium flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Clear All Applications ({applications.length})</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Section: Privacy Notice */}
@@ -407,44 +444,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </p>
         </div>
 
-        {/* Danger Zone: Clear Data */}
-        <div className="pt-2 flex items-center justify-between border-t border-brand-border dark:border-darkBrand-border">
-          {!showClearConfirm ? (
-            <Button
-              size="xs"
-              variant="danger"
-              onClick={() => setShowClearConfirm(true)}
-              leftIcon={<Trash2 className="w-3 h-3" />}
-            >
-              Clear All Data
-            </Button>
-          ) : (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-coral-600 font-medium">Delete all records?</span>
-              <Button
-                size="xs"
-                variant="danger"
-                onClick={async () => {
-                  await onClearAllData();
-                  setShowClearConfirm(false);
-                }}
-              >
-                Yes, Delete All
-              </Button>
-              <Button size="xs" variant="ghost" onClick={() => setShowClearConfirm(false)}>
-                Cancel
-              </Button>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button variant="primary" onClick={handleSave} isLoading={isSaving}>
-              Save Settings
-            </Button>
-          </div>
+        {/* Modal Action Footer — Clean, spacious, zero clutter */}
+        <div className="pt-2 flex items-center justify-end gap-2 border-t border-brand-border dark:border-darkBrand-border">
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSave} isLoading={isSaving}>
+            Save Settings
+          </Button>
         </div>
       </div>
     </Modal>

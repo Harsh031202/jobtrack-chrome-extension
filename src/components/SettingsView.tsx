@@ -320,16 +320,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <div
                   className={`px-3 py-1.5 rounded-xl text-xs flex items-center gap-2 ${
                     testResult.success
-                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-lime-300 border border-emerald-200 dark:border-emerald-800/50'
-                      : 'bg-coral-50 dark:bg-coral-950/40 text-coral-800 dark:text-coral-300 border border-coral-200 dark:border-coral-800/50'
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30'
+                      : 'bg-coral-50 dark:bg-coral-500/15 text-coral-800 dark:text-coral-300 border border-coral-300 dark:border-coral-500/30'
                   }`}
                 >
                   {testResult.success ? (
-                    <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                   ) : (
-                    <AlertTriangle className="w-4 h-4 shrink-0 text-coral-600" />
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-coral-600 dark:text-coral-400" />
                   )}
-                  <span>{testResult.message}</span>
+                  <span className="font-medium">{testResult.message}</span>
                 </div>
               )}
             </div>

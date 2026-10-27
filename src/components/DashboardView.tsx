@@ -77,6 +77,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
   const [extractionWarning, setExtractionWarning] = useState<string | undefined>();
   const [trackError, setTrackError] = useState<string | null>(null);
 
+  const [activeTracking, setActiveTracking] = useState<any>(null);
+  const [pendingApproval, setPendingApproval] = useState<any>(null);
+
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -85,6 +88,35 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
     const list = await getStoredApplications();
     setApplications(list);
   };
+
+  useEffect(() => {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get(['jobtrack_active_tracking', 'jobtrack_pending_approval'], (res) => {
+        if (res?.jobtrack_active_tracking) {
+          const item = res.jobtrack_active_tracking;
+          if (Date.now() - (item.startedAt || 0) < 120000) {
+            setActiveTracking(item);
+          }
+        }
+        if (res?.jobtrack_pending_approval) {
+          setPendingApproval(res.jobtrack_pending_approval);
+        }
+      });
+
+      const listener = (changes: any, area: string) => {
+        if (area === 'local') {
+          if (changes.jobtrack_active_tracking) {
+            setActiveTracking(changes.jobtrack_active_tracking.newValue || null);
+          }
+          if (changes.jobtrack_pending_approval) {
+            setPendingApproval(changes.jobtrack_pending_approval.newValue || null);
+          }
+        }
+      };
+      chrome.storage.onChanged.addListener(listener);
+      return () => chrome.storage.onChanged.removeListener(listener);
+    }
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -536,8 +568,71 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ mode }) => {
             </div>
           )}
 
+          {/* Active Background Tracking Indicator */}
+          {activeTracking && (
+            <div className="p-3.5 rounded-2xl bg-terracotta-50/70 dark:bg-terracotta-950/30 border border-terracotta-200 dark:border-terracotta-800/40 text-xs flex items-center justify-between gap-3 shadow-subtle animate-in fade-in">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="w-4 h-4 border-2 border-terracotta-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-semibold text-brand-ink dark:text-darkBrand-ink truncate">
+                    AI is tracking: {activeTracking.jobTitle || 'Job Listing'}
+                  </p>
+                  <p className="text-[11px] text-brand-secondary dark:text-darkBrand-secondary truncate mt-0.5">
+                    Extracting listing details in the background. You can browse, filter, or view analytics freely.
+                  </p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-lg text-[11px] font-mono bg-terracotta-100 dark:bg-terracotta-900/40 text-terracotta-700 dark:text-terracotta-300 shrink-0">
+                Tracking in Progress
+              </span>
+            </div>
+          )}
+
+          {/* Pending Approval Banner */}
+          {pendingApproval && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border-2 border-amber-300 dark:border-amber-500/30 flex items-center justify-between gap-3 shadow-subtle animate-in fade-in">
+              <div className="min-w-0 flex-1">
+                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  Application Ready for Review
+                </span>
+                <p className="text-xs font-bold text-brand-ink dark:text-darkBrand-ink truncate mt-0.5">
+                  {pendingApproval.extractedData?.role || 'Job Application'} at {pendingApproval.extractedData?.company || 'Company'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                      await chrome.storage.local.remove('jobtrack_pending_approval');
+                      try {
+                        await chrome.action.setBadgeText({ text: '' });
+                      } catch {}
+                    }
+                    setPendingApproval(null);
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg text-brand-secondary dark:text-darkBrand-secondary hover:text-coral-600 dark:hover:text-coral-400 transition-colors cursor-pointer"
+                >
+                  Decline
+                </button>
+                <Button
+                  size="xs"
+                  variant="primary"
+                  onClick={() => {
+                    setExtractedJobData(pendingApproval.extractedData);
+                    setCurrentPageUrl(pendingApproval.pageUrl || '');
+                    setIsTrackModalOpen(true);
+                  }}
+                >
+                  Review & Approve
+                </Button>
+              </div>
+            </div>
+          )}
+
           {trackError && (
-            <div className="p-3.5 rounded-xl bg-terracotta-50 dark:bg-terracotta-900/30 border border-terracotta-200 dark:border-terracotta-800/40 text-terracotta-700 dark:text-terracotta-300 text-xs flex items-center justify-between gap-3 shadow-subtle">
+            <div className="p-3.5 rounded-xl bg-terracotta-50 dark:bg-terracotta-500/15 border border-terracotta-200 dark:border-terracotta-500/30 text-terracotta-700 dark:text-terracotta-300 text-xs flex items-center justify-between gap-3 shadow-subtle">
               <div className="flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 text-terracotta-500" />
                 <span>{trackError}</span>

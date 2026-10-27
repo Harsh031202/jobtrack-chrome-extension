@@ -600,10 +600,8 @@ function showReadyState(extractedData: ExtractedJobData) {
 
   root.getElementById('jt-btn-dismiss')?.addEventListener('click', (e) => {
     e.stopPropagation();
+    // Dismiss only the in-page pill — do NOT discard the pending application from the extension
     dismissHost();
-    if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
-      chrome.runtime.sendMessage({ action: 'DISCARD_PENDING_APPROVAL' });
-    }
   });
 }
 

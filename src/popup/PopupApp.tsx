@@ -109,6 +109,17 @@ export const PopupApp: React.FC = () => {
   const [isJobPageHint, setIsJobPageHint] = useState(false);
   const [sourceName, setSourceName] = useState('');
 
+  // Active background tracking state (non-blocking)
+  interface ActiveTrackingItem {
+    tabId: number;
+    pageUrl: string;
+    jobTitle?: string;
+    detectedSource?: string;
+    startedAt: number;
+    status?: string;
+  }
+  const [activeTracking, setActiveTracking] = useState<ActiveTrackingItem | null>(null);
+
   // Tracking modal & button states
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -124,26 +135,43 @@ export const PopupApp: React.FC = () => {
 
   useEffect(() => {
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      chrome.storage.local.get('jobtrack_pending_approval', (res) => {
-        if (res?.jobtrack_pending_approval) {
-          const item = res.jobtrack_pending_approval;
-          setPendingApproval(item);
-          if (item.extractedData) {
-            setExtractedJobData(item.extractedData);
-            setTabUrl(item.pageUrl || '');
-            setIsTrackModalOpen(true);
+      chrome.storage.local.get(
+        ['jobtrack_active_tracking', 'jobtrack_pending_approval'],
+        (res) => {
+          if (res?.jobtrack_active_tracking) {
+            const item = res.jobtrack_active_tracking;
+            // Clean up if stale (> 2 minutes)
+            if (Date.now() - (item.startedAt || 0) < 120000) {
+              setActiveTracking(item);
+            } else {
+              chrome.storage.local.remove('jobtrack_active_tracking');
+            }
+          }
+          if (res?.jobtrack_pending_approval) {
+            const item = res.jobtrack_pending_approval;
+            setPendingApproval(item);
+            if (item.extractedData) {
+              setExtractedJobData(item.extractedData);
+              if (item.pageUrl) setTabUrl(item.pageUrl);
+            }
           }
         }
-      });
+      );
 
       const listener = (changes: any, area: string) => {
-        if (area === 'local' && changes.jobtrack_pending_approval) {
-          const item = changes.jobtrack_pending_approval.newValue || null;
-          setPendingApproval(item);
-          if (item?.extractedData) {
-            setExtractedJobData(item.extractedData);
-            setTabUrl(item.pageUrl || '');
-            setIsTrackModalOpen(true);
+        if (area === 'local') {
+          if (changes.jobtrack_active_tracking) {
+            const active = changes.jobtrack_active_tracking.newValue || null;
+            setActiveTracking(active);
+            if (!active) setIsExtracting(false);
+          }
+          if (changes.jobtrack_pending_approval) {
+            const item = changes.jobtrack_pending_approval.newValue || null;
+            setPendingApproval(item);
+            if (item?.extractedData) {
+              setExtractedJobData(item.extractedData);
+              if (item.pageUrl) setTabUrl(item.pageUrl);
+            }
           }
         }
       };
@@ -218,7 +246,13 @@ export const PopupApp: React.FC = () => {
           const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
           if (tab) {
             setTabTitle(tab.title || '');
-            setTabUrl(tab.url || '');
+            chrome.storage.local.get('jobtrack_pending_approval', (res) => {
+              if (res?.jobtrack_pending_approval?.pageUrl) {
+                setTabUrl(res.jobtrack_pending_approval.pageUrl);
+              } else {
+                setTabUrl(tab.url || '');
+              }
+            });
             const urlLow = (tab.url || '').toLowerCase();
             const isJob =
               urlLow.includes('job') ||
@@ -309,21 +343,56 @@ export const PopupApp: React.FC = () => {
         return;
       }
 
-      // Delegate extraction to background service worker so closing popup / switching to YouTube will not cancel it!
+      // Extract the job page data right now while the job tab is focused and active!
+      let pageData: any = null;
+      try {
+        const tabRes = await extractFromActiveTab();
+        if (tabRes.success && tabRes.pageData) {
+          pageData = tabRes.pageData;
+        }
+      } catch (e) {
+        console.debug('Direct popup extraction error, background will fallback:', e);
+      }
+
+      // Mark active tracking immediately so popup UI updates non-blockingly
+      const activeItem = {
+        tabId: tab.id,
+        pageUrl: pageData?.url || tab.url || '',
+        jobTitle: pageData?.title || tab.title || 'Job Listing',
+        detectedSource: pageData?.detectedSource || sourceName,
+        startedAt: Date.now(),
+        status: 'extracting',
+      };
+      setActiveTracking(activeItem);
+      if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+        await chrome.storage.local.set({ jobtrack_active_tracking: activeItem });
+      }
+
+      // Delegate extraction to background service worker with pre-extracted pageData!
       chrome.runtime.sendMessage({
         action: 'START_BACKGROUND_TRACKING',
         tabId: tab.id,
+        pageData,
       });
 
       setIsExtracting(true);
-
-      // Smoothly close the popup so the in-page pill takes over
-      setTimeout(() => {
-        window.close();
-      }, 150);
+      // Keep popup open so the user can freely view other jobs, stats, or open dashboard!
     } catch (err: any) {
       setTrackError(err.message || 'Error starting background tracking.');
       setIsExtracting(false);
+      setActiveTracking(null);
+    }
+  };
+
+  const handleCancelTracking = async () => {
+    setActiveTracking(null);
+    setIsExtracting(false);
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      await chrome.storage.local.remove('jobtrack_active_tracking');
+      try {
+        await chrome.action.setBadgeText({ text: '' });
+      } catch {}
+      chrome.runtime.sendMessage({ action: 'CANCEL_ACTIVE_TRACKING' }).catch(() => {});
     }
   };
 
@@ -416,12 +485,45 @@ export const PopupApp: React.FC = () => {
 
       {/* 2. Main Content Body */}
       <div className="p-4 space-y-4 flex-1 overflow-y-auto">
-        {/* Pending Approval Banner if background extraction finished */}
-        {pendingApproval && (
-          <div className="p-3.5 rounded-2xl bg-terracotta-50 dark:bg-terracotta-900/30 border border-terracotta-200 dark:border-terracotta-800/40 flex items-center justify-between gap-3 shadow-subtle animate-in fade-in duration-200">
+        {/* Active Background Tracking Banner: Shows AI tracking progress non-blockingly */}
+        {activeTracking && (
+          <div className="p-3.5 rounded-2xl bg-terracotta-50/80 dark:bg-terracotta-950/30 border border-terracotta-200 dark:border-terracotta-800/40 flex items-center justify-between gap-3 shadow-xs animate-in fade-in duration-200">
             <div className="min-w-0 flex-1">
-              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 dark:text-lime-400 uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-terracotta-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-terracotta-500" />
+                </span>
+                <span className="text-[10px] font-bold text-terracotta-600 dark:text-terracotta-400 uppercase tracking-wider">
+                  AI Tracking In Progress
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-brand-ink dark:text-darkBrand-ink truncate mt-1">
+                {activeTracking.jobTitle || 'Job Listing'}
+              </p>
+              <p className="text-[11px] text-brand-secondary dark:text-darkBrand-secondary truncate mt-0.5">
+                Extracting details in background • Browse freely
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="w-3.5 h-3.5 border-2 border-terracotta-500 border-t-transparent rounded-full animate-spin" />
+              <button
+                type="button"
+                onClick={handleCancelTracking}
+                className="px-2 py-1 text-xs font-medium rounded-lg text-brand-secondary dark:text-darkBrand-secondary hover:text-coral-600 dark:hover:text-coral-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Pending Approval Banner: Always present until approved or declined */}
+        {pendingApproval && (
+          <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border-2 border-amber-300 dark:border-amber-500/30 flex items-center justify-between gap-3 shadow-sm animate-in fade-in duration-200">
+            <div className="min-w-0 flex-1">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                 Ready for approval
               </span>
               <p className="text-xs font-bold text-brand-ink dark:text-darkBrand-ink truncate mt-0.5">
@@ -432,6 +534,21 @@ export const PopupApp: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                    await chrome.storage.local.remove('jobtrack_pending_approval');
+                    try {
+                      await chrome.action.setBadgeText({ text: '' });
+                    } catch {}
+                  }
+                  setPendingApproval(null);
+                }}
+                className="px-2.5 py-1 text-xs font-medium rounded-lg text-brand-secondary dark:text-darkBrand-secondary hover:text-coral-600 dark:hover:text-coral-400 hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                Decline
+              </button>
               <Button
                 size="xs"
                 variant="primary"
@@ -441,21 +558,8 @@ export const PopupApp: React.FC = () => {
                   setIsTrackModalOpen(true);
                 }}
               >
-                Approve
+                Review & Approve
               </Button>
-              <button
-                onClick={async () => {
-                  await chrome.storage.local.remove('jobtrack_pending_approval');
-                  setPendingApproval(null);
-                  try {
-                    await chrome.action.setBadgeText({ text: '' });
-                  } catch {}
-                }}
-                className="text-brand-muted hover:text-brand-ink dark:hover:text-darkBrand-ink text-xs p-1 cursor-pointer"
-                title="Dismiss"
-              >
-                ✕
-              </button>
             </div>
           </div>
         )}
@@ -496,7 +600,19 @@ export const PopupApp: React.FC = () => {
 
           {/* Hero Action Button Area */}
           <div id="tutorial-step-4-track" className="rounded-xl transition-all duration-200">
-            {isJobPageHint ? (
+            {activeTracking ? (
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-brand-pillBg dark:bg-darkBrand-pillBg border border-brand-border dark:border-darkBrand-border">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-3.5 h-3.5 border-2 border-terracotta-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                  <span className="text-[11px] font-medium text-brand-ink dark:text-darkBrand-ink truncate">
+                    AI analyzing listing in background…
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-brand-secondary dark:text-darkBrand-secondary shrink-0">
+                  Active
+                </span>
+              </div>
+            ) : isJobPageHint ? (
               <button
                 onClick={handleTrackCurrent}
                 disabled={isExtracting}
@@ -695,6 +811,20 @@ export const PopupApp: React.FC = () => {
         extractionWarning={extractionWarning}
         hasApiKey={!!settings?.ai?.apiKey}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onDecline={
+          pendingApproval
+            ? async () => {
+                if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+                  await chrome.storage.local.remove('jobtrack_pending_approval');
+                  try {
+                    await chrome.action.setBadgeText({ text: '' });
+                  } catch {}
+                }
+                setPendingApproval(null);
+                setIsTrackModalOpen(false);
+              }
+            : undefined
+        }
       />
 
       {/* Manual / Edit Modal */}

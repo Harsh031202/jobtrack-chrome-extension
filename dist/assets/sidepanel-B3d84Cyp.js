@@ -1,0 +1,1 @@
+import{j as e,c as t,R as o}from"./globals-BEori9t-.js";import{D as r}from"./DashboardView-BSCq49vR.js";import"./duplicate-C53WtuLE.js";import"./demo-data-CVD8GTGf.js";const s=()=>e.jsx(r,{mode:"sidepanel"});t.createRoot(document.getElementById("root")).render(e.jsx(o.StrictMode,{children:e.jsx(s,{})}));
